@@ -828,7 +828,7 @@ body{margin:0;padding:16px;background:var(--color-bg);color:var(--color-fg);font
     u.head.replaceChildren();
     const dots = wkMk('span', 'wk-dots'); dots.append(wkMk('i'), wkMk('i'), wkMk('i'));
     const info = wkMk('span', 'info'); info.append(document.createTextNode(`${r.proto.toUpperCase()} · login `), wkMk('code', '', `${r.user || '(blank)'} / ${r.pw || '(blank)'}`));
-    u.clock = wkMk('span', 'wk-clock'); u.head.append(dots, info, u.clock);
+    u.clock = wkMk('span', 'wk-clock'); u.head.append(dots, info, u.clock); u.painted = true;
     u.screen.replaceChildren();
     wkLine('', `${r.proto} · login ${r.user || '(blank)'} / ${r.pw || '(blank)'} ✓`, true);
     r.cmds.slice(0, WK.idx).forEach((c) => wkLine(`${c[0].toFixed(1)}s`, c[1]));
@@ -836,6 +836,7 @@ body{margin:0;padding:16px;background:var(--color-bg);color:var(--color-fg);font
   }
   function wkLabels() {
     const u = WK.ui, r = wkCur(); if (!u || !r) return;
+    if (!u.painted) { wkPaint(); return; }
     const c = r.cmds[Math.max(0, WK.idx - 1)];
     u.clock.textContent = `${WK.idx ? c[0].toFixed(1) : '0.0'} / ${r.dur} s`;
     u.progI.style.width = `${100 * WK.idx / r.cmds.length}%`;
@@ -896,7 +897,7 @@ body{margin:0;padding:16px;background:var(--color-bg);color:var(--color-fg);font
       mReal.addEventListener('click', () => { WK.mode = 'real'; wkLabels(); });
       const made = {el, picks, term, head, screen, progI, now, play, re, mStep, mReal, meta, clock: null, io: null};
       if ('IntersectionObserver' in window && !wkReduce) {
-        made.io = new IntersectionObserver((es) => { if (es.some((e) => e.isIntersecting) && !WK.played && wkCur()) { made.io.disconnect(); wkPlay(); } }, {threshold: 0.5});
+        made.io = new IntersectionObserver((es) => { made.vis = es.some((e) => e.isIntersecting); if (made.vis && !WK.played && wkCur()) wkPlay(); }, {threshold: 0.5});
         made.io.observe(term);
       }
       return made;
@@ -905,8 +906,9 @@ body{margin:0;padding:16px;background:var(--color-bg);color:var(--color-fg);font
       const sig = wkReps().map((r) => r.sid).join(',');
       if (!sig) { WK.ui = made; return; }
       if (sig !== WK.sig) { WK.sig = sig; if (WK.pick >= wkReps().length) WK.pick = 0; wkReset(); }
-      if (WK.ui !== made) { WK.ui = made; wkPaint(); } else wkLabels();
+      if (WK.ui !== made || !made.painted) { WK.ui = made; wkPaint(); } else wkLabels();
       if (WK.playing && !WK.timer && !WK.typer) wkStep();
+      else if (made.vis && !WK.played && !wkReduce) wkPlay();   // data arrived after the section came into view
     },
     unmount(el, made) { if (made && made.io) made.io.disconnect(); if (WK.ui === made) WK.ui = null; },
   });
