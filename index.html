@@ -767,7 +767,6 @@ body{margin:0;padding:16px;background:var(--color-bg);color:var(--color-fg);font
       <p class="hp-src"><span data-l="th">อ้างอิงลำดับคำสั่ง Mirai: </span><span data-l="en">Mirai command order reference: </span><a href="https://raw.githubusercontent.com/jgamblin/Mirai-Source-Code/master/mirai/bot/scanner.c" target="_blank" rel="noopener">Mirai scanner.c</a> <span data-l="th">(ส่ง enable, system, shell, sh แล้ว query busybox หลัง login; string table เข้ารหัสด้วย XOR)</span><span data-l="en">(sends enable, system, shell, sh, then queries busybox after login; its string table is XOR-encoded)</span></p>
     </article>
   </section>
-  <footer class="hp-foot"><span data-l="th">อัปเดตล่าสุด </span><span data-l="en">Last updated </span><span data-draw="k-gen" data-source="kpis" data-field="generated" data-row="0">—</span></footer>
   <div class="hp-signbar"><span class="hp-sign">Futureverse Research Lab.</span><span class="hp-sign-sub">under Broadband Access Network Engineering Department</span></div>
 </div>
 
@@ -1171,7 +1170,6 @@ body{margin:0;padding:16px;background:var(--color-bg);color:var(--color-fg);font
   dash.draw('k-total', kpi('total', fmt));
   dash.draw('k-telnet', kpi('telnet', fmt));
   const MON_TH = ['ม.ค.', 'ก.พ.', 'มี.ค.', 'เม.ย.', 'พ.ค.', 'มิ.ย.', 'ก.ค.', 'ส.ค.', 'ก.ย.', 'ต.ค.', 'พ.ย.', 'ธ.ค.'], MON_EN = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
-  dash.draw('k-gen', kpi('generated', (v) => { const [d, t] = v.split(' '), [y, m, dd] = d.split('-').map(Number); return window.HP.L(`${dd} ${MON_TH[m - 1]} ${y} · ${t} น.`, `${dd} ${MON_EN[m - 1]} ${y}, ${t} (Bangkok time)`); }));
   dash.draw('sys-total-w', kpi('total', fmt));
   dash.draw('sys-total-t', kpi('total', fmt));
 
