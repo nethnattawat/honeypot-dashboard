@@ -153,7 +153,15 @@ body{margin:0;padding:16px;background:var(--color-bg);color:var(--color-fg);font
   .hp-table td { padding: .55rem .625rem; border-bottom: 1px solid var(--ap-line); vertical-align: top; }
   .hp-table tbody tr { transition: background .25s; } .hp-table tbody tr:hover { background: var(--ap-fill); }
   .hp-table tbody tr:last-child td { border-bottom: 0; }
-  .hp-table .num { text-align: right; font-variant-numeric: tabular-nums; white-space: nowrap; }
+  .hp-table .num { text-align: center; font-variant-numeric: tabular-nums; white-space: nowrap; }
+  /* short value columns sit in the middle of their cell */
+  #http .hp-table th:first-child, #http .hp-table td:first-child,
+  #malware .hp-table th:nth-child(3), #malware .hp-table td:nth-child(3),
+  #webports .hp-table th:nth-child(5), #webports .hp-table td:nth-child(5),
+  #vendor .hp-table th:nth-child(4), #vendor .hp-table td:nth-child(4) { text-align: center; white-space: nowrap; }
+  /* number tiles: everything centred */
+  .hp-tile, .hx-tile { text-align: center; justify-items: center; }
+  .hx-chips { justify-content: center; }
   .hp-table code, .hp code { font-family: var(--ap-mono); font-size: .92em; word-break: break-all; letter-spacing: 0; }
   .hp-table td.wrap { white-space: normal; min-width: 12rem; }
   .hp-table td b { font-weight: 600; }
