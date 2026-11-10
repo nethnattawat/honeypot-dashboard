@@ -1,0 +1,1435 @@
+<!doctype html>
+<html lang="th"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1">
+<title>CPE Honeypot Watch</title>
+<meta name="description" content="What internet bots do to an ONU/router that leaves Telnet, SSH, HTTP and TR-069 open on the WAN side.">
+<style>
+:root{--cds-gap-xs:4px;--cds-gap-sm:8px;--cds-gap-md:16px;--cds-gap-lg:24px;--cds-gap-xl:32px;--cds-pad-xs:4px;--cds-pad-sm:8px;--cds-pad-md:12px;--cds-pad-lg:20px;--cds-radius:10px;
+--cds-font-size-title:28px;--cds-font-size-heading:18px;--cds-font-size-body:15px;--cds-font-size-caption:12.5px;--cds-font-weight-medium:500;
+--color-bg:#F5F5F7;--color-panel:#fff;--color-fg:#1D1D1F;--color-fg-muted:#6e6e73;--color-border-line:#e2e2e7;--color-bad:#d03b3b;--color-warn:#d68a1a;}
+@media (prefers-color-scheme: dark){:root:not([data-theme="light"]){--color-bg:#000;--color-panel:#1c1c1e;--color-fg:#F5F5F7;--color-fg-muted:#AAAAAA;--color-border-line:#2c2c2e;}}
+:root[data-theme="dark"]{--color-bg:#000;--color-panel:#1c1c1e;--color-fg:#F5F5F7;--color-fg-muted:#AAAAAA;--color-border-line:#2c2c2e;}
+body{margin:0;padding:16px;background:var(--color-bg);color:var(--color-fg);font-family:-apple-system,BlinkMacSystemFont,"SF Pro Text","Noto Sans Thai",system-ui,sans-serif}
+.site-load{position:fixed;inset:auto 0 0 0;padding:.6rem;text-align:center;font-size:13px;color:var(--color-fg-muted)}
+</style>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/d3/7.9.0/d3.min.js"></script>
+<script>
+(() => {
+  const DATA = {}, calcs = {}, draws = [], onData = [], res = {};
+  let params = {};
+  try { params = JSON.parse(localStorage.getItem('hp-params') || '{}'); } catch (e) {}
+  const run = () => {
+    for (const [id, s] of Object.entries(calcs)) {
+      try { res[id] = {status: 'ok', data: s.fn(...s.inputs.map((i) => DATA[i]))}; }
+      catch (e) { console.error('calc', id, e); res[id] = {status: 'error'}; }
+    }
+    for (const [id, fn] of draws) document.querySelectorAll(`[data-draw="${id}"]`).forEach((el) => { try { fn(el); } catch (e) { console.error('draw', id, e); } });
+    onData.forEach((f) => { try { f(); } catch (e) { console.error(e); } });
+  };
+  window.dash = {
+    calc(id, spec) { calcs[id] = spec; },
+    draw(id, fn) { draws.push([id, fn]); },
+    data(id) { return res[id] || {status: 'loading'}; },
+    params() { return params; },
+    setParams(p) { Object.assign(params, p); try { localStorage.setItem('hp-params', JSON.stringify(params)); } catch (e) {} run(); },
+    setLink() {},
+    onData(fn) { onData.push(fn); },
+  };
+  const names = ['honeypot', 'bots', 'geo', 'events'];
+  const loaded = Promise.all(names.map((n) => fetch(`data/${n}.json`).then((r) => r.json()).then((j) => { DATA[n] = j.rows; })));
+  document.addEventListener('DOMContentLoaded', () => loaded.then(() => { document.querySelector('.site-load')?.remove(); run(); })
+    .catch((e) => { const m = document.querySelector('.site-load'); if (m) m.textContent = 'Could not load data: ' + e; }));
+})();
+</script>
+</head><body><div class="site-load">Loading data…</div>
+
+<style>
+  /* Apple-style skin. Palette: #F5F5F7 #1D1D1F #AAAAAA #007AFF (+ white card surface and tints of these). */
+  :root {
+    --ap-bg: #F5F5F7; --ap-card: #FFFFFF; --ap-fg: #1D1D1F; --ap-gray: #AAAAAA; --ap-blue: #007AFF;
+    --ap-fg2: color-mix(in srgb, #1D1D1F 66%, #F5F5F7);
+    --ap-line: color-mix(in srgb, #1D1D1F 10%, transparent);
+    --ap-fill: color-mix(in srgb, #1D1D1F 6%, transparent);
+    --ap-nav: color-mix(in srgb, #F5F5F7 78%, transparent);
+    --ap-shadow: 0 1px 2px rgba(29, 29, 31, .04), 0 12px 32px rgba(29, 29, 31, .06);
+    --ap-s-telnet: #1D1D1F; --ap-s-ssh: #007AFF; --ap-s-http80: #AAAAAA;
+    --ap-s-tr069: color-mix(in srgb, #007AFF 42%, #FFFFFF); --ap-s-http8080: color-mix(in srgb, #AAAAAA 45%, #FFFFFF);
+    --ap-ease: cubic-bezier(.28, .11, .32, 1);
+    --ap-font: -apple-system, BlinkMacSystemFont, "SF Pro Display", "SF Pro Text", "SF Thai", "Sukhumvit Set", "Helvetica Neue", "Noto Sans Thai", "Leelawadee UI", Thonburi, system-ui, sans-serif;
+    --ap-mono: "SF Mono", ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root:not([data-theme="light"]) {
+      --ap-bg: #1D1D1F; --ap-card: color-mix(in srgb, #F5F5F7 7%, #1D1D1F); --ap-fg: #F5F5F7;
+      --ap-fg2: #AAAAAA; --ap-line: color-mix(in srgb, #F5F5F7 14%, transparent); --ap-fill: color-mix(in srgb, #F5F5F7 9%, transparent);
+      --ap-nav: color-mix(in srgb, #1D1D1F 76%, transparent); --ap-shadow: none;
+      --ap-s-telnet: #F5F5F7; --ap-s-tr069: color-mix(in srgb, #007AFF 55%, #1D1D1F); --ap-s-http8080: color-mix(in srgb, #AAAAAA 45%, #1D1D1F);
+    }
+  }
+  :root[data-theme="dark"] {
+    --ap-bg: #1D1D1F; --ap-card: color-mix(in srgb, #F5F5F7 7%, #1D1D1F); --ap-fg: #F5F5F7;
+    --ap-fg2: #AAAAAA; --ap-line: color-mix(in srgb, #F5F5F7 14%, transparent); --ap-fill: color-mix(in srgb, #F5F5F7 9%, transparent);
+    --ap-nav: color-mix(in srgb, #1D1D1F 76%, transparent); --ap-shadow: none;
+    --ap-s-telnet: #F5F5F7; --ap-s-tr069: color-mix(in srgb, #007AFF 55%, #1D1D1F); --ap-s-http8080: color-mix(in srgb, #AAAAAA 45%, #1D1D1F);
+  }
+  body:has(.hp) { background: var(--ap-bg); }
+
+  /* TH / EN */
+  :root:not([data-ui="en"]) [data-l="en"], :root[data-ui="en"] [data-l="th"] { display: none !important; }
+
+  .hp { position: relative; display: grid; gap: clamp(2rem, 5vw, 3.5rem); background: var(--ap-bg); color: var(--ap-fg);
+    font-family: var(--ap-font); font-size: 17px; line-height: 1.47; letter-spacing: -.01em; -webkit-font-smoothing: antialiased;
+    border-radius: 28px; padding: 0 clamp(1rem, 3.5vw, 2.75rem) clamp(2.5rem, 6vw, 4.5rem); }
+  :root:not([data-ui="en"]) .hp { letter-spacing: 0; line-height: 1.6; }
+  .hp ::selection { background: color-mix(in srgb, var(--ap-blue) 25%, transparent); }
+  .hp a { color: var(--ap-blue); text-decoration: none; } .hp a:hover { text-decoration: underline; }
+  .hp :focus-visible { outline: 3px solid color-mix(in srgb, var(--ap-blue) 55%, transparent); outline-offset: 2px; }
+
+  /* sticky translucent local nav */
+  .ap-nav { position: sticky; top: 0; z-index: 20; margin: 0 calc(-1 * clamp(1rem, 3.5vw, 2.75rem)); padding: 0 clamp(1rem, 3.5vw, 2.75rem);
+    background: var(--ap-nav); -webkit-backdrop-filter: saturate(180%) blur(20px); backdrop-filter: saturate(180%) blur(20px);
+    border-bottom: 1px solid var(--ap-line); border-radius: 28px 28px 0 0; }
+  .ap-nav-in { display: flex; align-items: center; gap: .75rem 1.25rem; min-height: 3.25rem; flex-wrap: wrap; padding: .5rem 0; }
+  .ap-brand { font-size: 1.0625rem; font-weight: 600; letter-spacing: -.015em; margin-right: auto; white-space: nowrap; }
+  .hp-tabs, .hp-lang { display: inline-flex; padding: 3px; border-radius: 999px; background: var(--ap-fill); }
+  .hp-tabs { max-width: 100%; min-width: 0; overflow-x: auto; scrollbar-width: none; }
+  .hp { grid-template-columns: minmax(0, 1fr); } .hp-tabs::-webkit-scrollbar { display: none; }
+  .hp-tab, .hp-lang button { appearance: none; border: 0; background: none; font: inherit; font-size: .8125rem; color: var(--ap-fg2); padding: .4rem .95rem; border-radius: 999px; cursor: pointer; white-space: nowrap;
+    transition: background .35s var(--ap-ease), color .35s var(--ap-ease), box-shadow .35s var(--ap-ease), transform .2s var(--ap-ease); }
+  .hp-tab:hover, .hp-lang button:hover { color: var(--ap-fg); }
+  .hp-tab:active, .hp-lang button:active { transform: scale(.96); }
+  .hp-tab[aria-selected="true"] { background: var(--ap-card); color: var(--ap-fg); font-weight: 600; box-shadow: 0 1px 3px rgba(29, 29, 31, .12); }
+  .hp-lang button { font-weight: 600; padding: .4rem .75rem; }
+  .hp-lang button[aria-pressed="true"] { background: var(--ap-blue); color: #FFFFFF; }
+
+  /* hero + section heads */
+  .hp-head { display: grid; gap: 1rem; justify-items: center; text-align: center; max-width: 60rem; margin: clamp(1rem, 4vw, 2.5rem) auto 0; }
+  .hp-eyebrow { margin: 0; font-size: 1.0625rem; font-weight: 600; color: var(--ap-blue); letter-spacing: -.01em; }
+  .hp-title { margin: 0; font-size: clamp(2rem, 5.2vw, 3.5rem); font-weight: 600; line-height: 1.08; letter-spacing: -.025em; text-wrap: balance; }
+  .hp-hero .hp-take { margin: 0; font-size: clamp(1.9rem, 5.4vw, 3.75rem); font-weight: 600; line-height: 1.07; letter-spacing: -.028em; text-wrap: balance; }
+  :root:not([data-ui="en"]) .hp-title, :root:not([data-ui="en"]) .hp-hero .hp-take { line-height: 1.28; letter-spacing: -.01em; }
+  .hp-take { margin: 0; font-size: clamp(1.1rem, 2.2vw, 1.5rem); font-weight: 500; line-height: 1.35; color: var(--ap-fg2); text-wrap: pretty; max-width: 48rem; }
+  .hp-hero .hp-take { color: var(--ap-fg); max-width: none; }
+  .hp .hp-take b { font-weight: 600; color: var(--ap-blue); font-variant-numeric: tabular-nums; }
+  .hp-page > .hp-head:not(.hp-hero) .hp-take b { color: var(--ap-fg); }
+  .hp-lede { margin: 0; font-size: clamp(1.05rem, 1.9vw, 1.3125rem); line-height: 1.45; color: var(--ap-fg2); max-width: 44rem; text-wrap: pretty; }
+  .hp-meta { margin: 0; font-size: .8125rem; color: var(--ap-fg2); max-width: 46rem; }
+
+  .hp-page { display: grid; gap: clamp(1.25rem, 2.5vw, 1.75rem); }
+  .hp-page[hidden] { display: none; }
+  .hp-page > .hp-head { margin-bottom: clamp(.75rem, 2vw, 1.5rem); }
+
+  /* bento tiles */
+  .hp-tiles { display: grid; gap: clamp(.75rem, 1.6vw, 1.25rem); grid-template-columns: repeat(auto-fit, minmax(min(100%, 13rem), 1fr)); }
+  .hp-tile, .hp-card { background: var(--ap-card); border-radius: 22px; box-shadow: var(--ap-shadow); min-width: 0;
+    transition: transform .6s var(--ap-ease), box-shadow .6s var(--ap-ease), opacity .9s var(--ap-ease); }
+  .hp-tile { padding: clamp(1.25rem, 2.4vw, 1.75rem); display: grid; gap: .25rem; align-content: start; }
+  .hp-tile-l { font-size: .875rem; font-weight: 600; color: var(--ap-fg2); }
+  .hp .hp-tile-v { font-size: clamp(2.4rem, 4.6vw, 3.5rem); font-weight: 600; line-height: 1.05; letter-spacing: -.03em; font-variant-numeric: tabular-nums; }
+  .hp-tile.is-bad .hp-tile-v { color: var(--ap-blue); }
+  .hp-tile-n { font-size: .8125rem; color: var(--ap-fg2); line-height: 1.4; }
+  @media (hover: hover) { .hp-tile:hover { transform: scale(1.02); box-shadow: 0 2px 4px rgba(29, 29, 31, .05), 0 22px 48px rgba(29, 29, 31, .12); } }
+
+  .hp-grid { display: grid; gap: clamp(.75rem, 1.6vw, 1.25rem); grid-template-columns: repeat(auto-fit, minmax(min(100%, 24rem), 1fr)); }
+  .hp-card { padding: clamp(1.25rem, 2.6vw, 2rem); display: grid; gap: .625rem; align-content: start; }
+  .hp-card h2, .hp-sec h2 { margin: 0; font-size: clamp(1.3rem, 2.2vw, 1.6rem); font-weight: 600; line-height: 1.15; letter-spacing: -.02em; }
+  :root:not([data-ui="en"]) .hp-card h2, :root:not([data-ui="en"]) .hp-sec h2 { line-height: 1.35; letter-spacing: 0; }
+  .hp-note { margin: 0; font-size: .8125rem; color: var(--ap-fg2); line-height: 1.5; }
+  .hp-chart { position: relative; min-height: 220px; margin-top: .5rem; }
+  .hp-chart .ap-grow { transform-box: fill-box; transform-origin: 50% 100%; animation: ap-grow 1.1s var(--ap-ease) both; }
+  .hp-chart rect { transition: opacity .25s; }
+  .hp-legend { display: flex; flex-wrap: wrap; gap: .375rem 1rem; font-size: .8125rem; color: var(--ap-fg2); list-style: none; margin: .25rem 0 0; padding: 0; }
+  .hp-legend li { display: inline-flex; align-items: center; gap: .4rem; }
+  .hp-sw { width: .625rem; height: .625rem; border-radius: 50%; display: inline-block; }
+  .hp-tip { position: absolute; pointer-events: none; background: color-mix(in srgb, var(--ap-card) 86%, transparent); -webkit-backdrop-filter: blur(16px); backdrop-filter: blur(16px);
+    border-radius: 12px; box-shadow: 0 8px 28px rgba(29, 29, 31, .18); padding: .5rem .75rem; font-size: .8125rem; white-space: nowrap; z-index: 2; }
+  .hp-tip-h { color: var(--ap-fg2); font-weight: 600; }
+
+  /* tables */
+  .hp-tablebox { max-height: 23rem; overflow: auto; margin: .25rem -.5rem 0; padding: 0 .5rem; scrollbar-width: thin; }
+  .hp-table { width: 100%; border-collapse: collapse; font-size: .8125rem; }
+  .hp-table th { position: sticky; top: 0; background: var(--ap-card); text-align: left; font-weight: 600; font-size: .75rem; color: var(--ap-fg2); padding: .5rem .625rem; border-bottom: 1px solid var(--ap-line); z-index: 1; }
+  .hp-table td { padding: .55rem .625rem; border-bottom: 1px solid var(--ap-line); vertical-align: top; }
+  .hp-table tbody tr { transition: background .25s; } .hp-table tbody tr:hover { background: var(--ap-fill); }
+  .hp-table tbody tr:last-child td { border-bottom: 0; }
+  .hp-table .num { text-align: right; font-variant-numeric: tabular-nums; white-space: nowrap; }
+  .hp-table code, .hp code { font-family: var(--ap-mono); font-size: .92em; word-break: break-all; letter-spacing: 0; }
+  .hp-table td.wrap { white-space: normal; min-width: 12rem; }
+  .hp-table td b { font-weight: 600; }
+  .hp-table tr.sev3 td:first-child code::before, .hp-table tr.sev2 td:first-child code::before, .hp-table tr.sev1 td:first-child code::before { content: ""; display: inline-block; box-sizing: border-box; width: .5rem; height: .5rem; border-radius: 50%; margin-right: .4rem; vertical-align: middle; background: var(--ap-gray); }
+  .hp-table tr.sev3 td:first-child code::before { background: var(--ap-blue); }
+  .hp-table tr.sev2 td:first-child code::before { background: none; border: 2px solid var(--ap-blue); }
+
+  #families .hp-table { min-width: 66rem; } #families td:first-child code, #families td:last-child code { white-space: nowrap; word-break: normal; }
+  #families td.wrap { min-width: 14rem; overflow-wrap: anywhere; }
+  @media (max-width: 44rem) { .ap-brand { flex: 1; } .hp-lang { order: 2; } .hp-tabs { order: 3; width: 100%; } .hp-tab { flex: 1 0 auto; } }
+
+  /* actions */
+  .hp-sec { display: grid; gap: 1.25rem; margin-top: clamp(1rem, 3vw, 2rem); }
+  .hp-sec > h2 { text-align: center; font-size: clamp(1.75rem, 3.6vw, 2.5rem); }
+  .hp-sec > .hp-note { text-align: center; max-width: 46rem; margin: 0 auto; }
+  .hp-actions { display: grid; gap: clamp(.75rem, 1.6vw, 1.25rem); grid-template-columns: repeat(auto-fit, minmax(min(100%, 15rem), 1fr)); list-style: none; padding: 0; margin: 0; counter-reset: ap; }
+  .hp-actions li { counter-increment: ap; background: var(--ap-card); border-radius: 22px; box-shadow: var(--ap-shadow); padding: clamp(1.25rem, 2.4vw, 1.75rem); display: grid; gap: .5rem; align-content: start;
+    transition: transform .6s var(--ap-ease), box-shadow .6s var(--ap-ease), opacity .9s var(--ap-ease); }
+  .hp-actions li::before { content: "0" counter(ap); font-size: .8125rem; font-weight: 600; color: var(--ap-blue); font-variant-numeric: tabular-nums; }
+  .hp-actions strong { font-size: 1.1875rem; font-weight: 600; line-height: 1.25; letter-spacing: -.015em; }
+  .hp-actions span { font-size: .875rem; color: var(--ap-fg2); line-height: 1.5; }
+  @media (hover: hover) { .hp-actions li:hover { transform: scale(1.02); } }
+
+  [data-dash-source-state=refreshing] { opacity: .5; transition: opacity .4s; }
+  [data-dash-source-state=empty] { color: transparent; }
+  .hp-empty { margin: 0; font-size: .8125rem; color: var(--ap-fg2); }
+  .hp-pick { display: flex; flex-wrap: wrap; align-items: center; gap: .625rem; font-size: .8125rem; font-weight: 600; color: var(--ap-fg2); }
+  .hp-pick select, .tm select { appearance: none; -webkit-appearance: none; font: inherit; font-size: .8125rem; font-weight: 500; padding: .45rem 2rem .45rem .95rem; border: 0; border-radius: 999px; cursor: pointer;
+    background: var(--ap-fill) url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='10' height='6' viewBox='0 0 10 6'%3E%3Cpath d='M1 1l4 4 4-4' fill='none' stroke='%23AAAAAA' stroke-width='1.6' stroke-linecap='round' stroke-linejoin='round'/%3E%3C/svg%3E") no-repeat right .8rem center; color: var(--ap-fg); transition: background-color .3s; }
+  .hp-src { font-size: .8125rem; color: var(--ap-fg2); margin: .25rem 0 0; }
+
+  /* scroll reveal */
+  .hp.ap-js [data-reveal] { opacity: 0; transform: translateY(28px); transition: opacity .9s var(--ap-ease), transform .9s var(--ap-ease), box-shadow .6s var(--ap-ease); }
+  .hp.ap-js [data-reveal].in { opacity: 1; transform: none; }
+  @keyframes ap-grow { from { transform: scaleY(0); } to { transform: scaleY(1); } }
+
+  /* attack map: an always-dark stage, like Apple's dark product sections */
+  .tm { --tm-bg: #1D1D1F; --tm-fg: #F5F5F7; --tm-mute: #AAAAAA; --tm-line: rgba(245, 245, 247, .1); --tm-acc: #007AFF;
+    position: relative; overflow: hidden; border-radius: 28px; color: var(--tm-fg); display: grid; gap: 0;
+    background: radial-gradient(120% 90% at 50% 34%, color-mix(in srgb, #F5F5F7 7%, #1D1D1F) 0%, #1D1D1F 62%); box-shadow: 0 30px 60px rgba(29, 29, 31, .18); }
+  .tm-head { display: grid; grid-template-columns: 1fr auto 1fr; align-items: start; gap: 1rem; padding: clamp(1.25rem, 2.6vw, 2rem) clamp(1.25rem, 2.6vw, 2rem) 0; }
+  .tm-brand { display: flex; align-items: center; gap: .5rem; font-size: .75rem; font-weight: 600; letter-spacing: .08em; color: var(--tm-mute); padding-top: .4rem; }
+  .tm-brand i { width: .5rem; height: .5rem; border-radius: 50%; background: var(--tm-acc); box-shadow: 0 0 0 0 rgba(0, 122, 255, .7); animation: tm-beat 2s infinite; }
+  .tm-title { text-align: center; }
+  .tm-title h3 { margin: 0; font-size: clamp(1.3rem, 2.8vw, 2rem); font-weight: 600; letter-spacing: -.022em; line-height: 1.15; }
+  .tm-count { margin: .25rem 0 0; color: var(--tm-mute); font-size: clamp(.875rem, 1.5vw, 1.0625rem); }
+  .tm-count b { color: var(--tm-fg); font-variant-numeric: tabular-nums; font-weight: 600; font-size: 1.35em; letter-spacing: -.02em; }
+  .tm-ctl { display: flex; flex-wrap: wrap; gap: .5rem; justify-content: flex-end; }
+  .tm select { background-color: rgba(245, 245, 247, .1); color: var(--tm-fg); -webkit-backdrop-filter: blur(12px); backdrop-filter: blur(12px); }
+  .tm select:hover { background-color: rgba(245, 245, 247, .16); }
+  .tm select option { color: #1D1D1F; background: #F5F5F7; }
+  .tm-play { appearance: none; border: 0; width: 2.1rem; height: 2.1rem; border-radius: 50%; background: var(--tm-acc); color: #FFFFFF; font: inherit; font-size: .7rem; cursor: pointer; display: grid; place-items: center;
+    transition: transform .25s var(--ap-ease), filter .25s; }
+  .tm-play:hover { filter: brightness(1.12); } .tm-play:active { transform: scale(.92); }
+  .tm-play[hidden], .tm select[hidden] { display: none; }
+  @media (max-width: 52rem) { .tm-head { grid-template-columns: 1fr; } .tm-title { text-align: left; } .tm-ctl { justify-content: flex-start; } }
+  .tm-stage { position: relative; margin-top: .5rem; }
+  .tm-stage canvas { display: block; width: 100%; height: auto; aspect-ratio: 1200 / 657; }
+  .tm-clock { position: absolute; left: clamp(1.25rem, 2.6vw, 2rem); bottom: 1.4rem; display: grid; line-height: 1.1; pointer-events: none; }
+  .tm-clock span { font-size: clamp(1.4rem, 3.2vw, 2.4rem); font-weight: 600; font-variant-numeric: tabular-nums; letter-spacing: -.03em; }
+  .tm-clock small { color: var(--tm-mute); font-size: .8125rem; }
+  .tm-bar { position: absolute; left: clamp(1.25rem, 2.6vw, 2rem); right: clamp(1.25rem, 2.6vw, 2rem); bottom: .5rem; height: 4px; border-radius: 2px; background: rgba(245, 245, 247, .14); cursor: pointer; transition: height .25s var(--ap-ease); }
+  .tm-bar:hover { height: 6px; }
+  .tm-bar i { display: block; height: 100%; width: 0; border-radius: 2px; background: var(--tm-acc); }
+  @media (max-width: 40rem) { .tm-clock { position: static; padding: .5rem 1.25rem .75rem; } .tm-bar { bottom: auto; top: calc(100% - 4px); } }
+  .tm-legend { list-style: none; margin: 0; padding: 1.1rem clamp(1.25rem, 2.6vw, 2rem) 0; display: flex; flex-wrap: wrap; gap: .5rem 1.25rem; font-size: .8125rem; color: var(--tm-mute); }
+  .tm-legend li { display: flex; align-items: center; gap: .45rem; }
+  .tm-legend b { color: var(--tm-fg); font-weight: 600; font-variant-numeric: tabular-nums; }
+  .tm-sw { width: .6rem; height: .6rem; border-radius: 50%; flex: none; }
+  .tm-panels { display: grid; grid-template-columns: repeat(auto-fit, minmax(min(100%, 16rem), 1fr)); gap: .75rem; padding: clamp(1.25rem, 2.6vw, 2rem); }
+  .tm-panel { background: rgba(245, 245, 247, .06); border-radius: 18px; padding: 1.1rem 1.2rem; min-width: 0; }
+  .tm-panel h4 { margin: 0 0 .6rem; font-size: .8125rem; font-weight: 600; color: var(--tm-mute); }
+  .tm-feed, .tm-rank { list-style: none; margin: 0; padding: 0; display: grid; align-content: start; gap: .4rem; font-size: .8125rem; }
+  .tm-feed { min-height: calc(8 * 1.25rem + 7 * .4rem); } .tm-rank { min-height: calc(8 * (1.25rem + .25rem + 4px) + 7 * .4rem); }
+  .tm-feed li, .tm-rank .nm, .tm-rank .v { line-height: 1.25rem; }
+  .tm-feed li { display: grid; grid-template-columns: 2.7rem .6rem minmax(0, 1fr) auto; gap: .45rem; align-items: center; animation: tm-in .5s var(--ap-ease); }
+  .tm-feed time { color: var(--tm-mute); font-variant-numeric: tabular-nums; }
+  .tm-feed .w { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .tm-feed .w small { color: var(--tm-mute); font-size: 1em; }
+  .tm-feed .n { font-variant-numeric: tabular-nums; }
+  .tm-rank li { display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: .25rem .5rem; }
+  .tm-rank .nm { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .tm-rank .v { font-variant-numeric: tabular-nums; font-weight: 600; }
+  .tm-rank .bar { grid-column: 1 / -1; height: 4px; border-radius: 2px; background: rgba(245, 245, 247, .1); display: flex; overflow: hidden; }
+  .tm-rank .bar i { display: block; height: 100%; transition: width .6s var(--ap-ease); }
+  .tm-tip { position: absolute; z-index: 2; pointer-events: none; min-width: 12rem; max-width: 18rem; background: rgba(29, 29, 31, .78); -webkit-backdrop-filter: saturate(180%) blur(20px); backdrop-filter: saturate(180%) blur(20px);
+    border: 1px solid rgba(245, 245, 247, .14); border-radius: 14px; padding: .65rem .8rem; font-size: .8125rem; box-shadow: 0 16px 40px rgba(0, 0, 0, .35); }
+  .tm-tip h5 { margin: 0 0 .35rem; font-size: .8125rem; font-weight: 600; }
+  .tm-tip dl { margin: 0; display: grid; grid-template-columns: 1fr auto; gap: .15rem .75rem; }
+  .tm-tip dt { color: var(--tm-mute); display: flex; align-items: center; gap: .35rem; } .tm-tip dd { margin: 0; text-align: right; font-variant-numeric: tabular-nums; }
+  .tm-tip p { margin: .35rem 0 0; color: var(--tm-mute); }
+  @keyframes tm-beat { 0% { box-shadow: 0 0 0 0 rgba(0, 122, 255, .7); } 70% { box-shadow: 0 0 0 .5rem rgba(0, 122, 255, 0); } 100% { box-shadow: 0 0 0 0 rgba(0, 122, 255, 0); } }
+  @keyframes tm-in { from { opacity: 0; transform: translateY(-6px); } to { opacity: 1; transform: none; } }
+
+  /* System diagram */
+  .sys-card { --sys-a: #FF3B30; --sys-d: var(--ap-blue); --sys-m: var(--ap-gray); padding: clamp(1rem, 3vw, 2.25rem); }
+  @media (prefers-color-scheme: dark) { :root:not([data-theme="light"]) .sys-card { --sys-a: #FF453A; } }
+  :root[data-theme="dark"] .sys-card { --sys-a: #FF453A; }
+  .sys-svg { display: block; width: 100%; height: auto; font-family: var(--ap-font); overflow: visible; }
+  .sys-tall { display: none; max-width: 26rem; margin: 0 auto; }
+  @media (max-width: 820px) { .sys-wide { display: none; } .sys-tall { display: block; } }
+  .sys-gcp { fill: color-mix(in srgb, var(--ap-blue) 5%, transparent); stroke: color-mix(in srgb, var(--ap-blue) 45%, transparent); stroke-width: 1.5; stroke-dasharray: 7 7; }
+  .sys-cloud { fill: none; stroke: var(--ap-blue); stroke-width: 2.4; stroke-linejoin: round; }
+  .sys-gl { font-size: 15px; font-weight: 600; fill: var(--ap-blue); }
+  .sys-l { font-size: 18px; font-weight: 600; fill: var(--ap-fg); }
+  .sys-l.big { font-size: 21px; } .sys-l.m { font-size: 16px; fill: var(--ap-fg2); }
+  .sys-s { font-size: 13.5px; fill: var(--ap-fg2); }
+  .sys-n { font-size: 20px; font-weight: 700; fill: var(--sys-a); font-variant-numeric: tabular-nums; }
+  .sys-u { font-size: 15px; fill: var(--ap-fg2); }
+  .sys-step circle { fill: var(--ap-fg); } .sys-step text { fill: var(--ap-card); font-size: 14px; font-weight: 700; text-anchor: middle; }
+  .sys-ico { fill: var(--ap-card); stroke: var(--ap-fg); stroke-width: 2.6; stroke-linecap: round; stroke-linejoin: round; }
+  .sys-ico .thick { stroke-width: 6; }
+  .sys-data { stroke: var(--sys-d); fill: color-mix(in srgb, var(--sys-d) 8%, var(--ap-card)); }
+  .sys-data polyline { fill: none; }
+  .sys-adm, .sys-lock { stroke: var(--ap-fg2); }
+  .sys-lock { fill: color-mix(in srgb, var(--ap-gray) 18%, var(--ap-card)); } .sys-lock path { fill: none; } .sys-lock .k { fill: var(--ap-fg2); stroke: none; }
+  .sys-adm polyline { fill: none; }
+  .sys-onu rect { fill: color-mix(in srgb, var(--ap-fg) 4%, var(--ap-card)); }
+  .sys-onu .led { fill: var(--ap-blue); stroke: none; } .sys-onu .rec { fill: var(--sys-a); animation: sys-rec 1.6s ease-in-out infinite; }
+  .sys-ico .bar { fill: var(--ap-gray); stroke: none; } .sys-ico .bar.r { fill: var(--ap-blue); }
+  .sys-globe { fill: none; stroke: var(--ap-line); stroke-width: 1.5; }
+  .sys-globe circle { fill: var(--ap-fill); }
+  .sys-bot line, .sys-bot rect, .sys-bot > circle:not(.e) { stroke: var(--sys-a); stroke-width: 2.6; fill: color-mix(in srgb, var(--sys-a) 14%, var(--ap-card)); }
+  .sys-bot .e { fill: var(--sys-a); }
+  .sys-port rect { fill: color-mix(in srgb, var(--sys-a) 12%, transparent); }
+  .sys-port text { fill: var(--sys-a); font: 600 13px var(--ap-mono); text-anchor: middle; }
+  .sys-track { fill: none; stroke-width: 4; stroke-linecap: round; opacity: .16; }
+  .sys-flow { fill: none; stroke-width: 4.5; stroke-linecap: round; stroke-linejoin: round; stroke-dasharray: 0 15; animation: sys-run .9s linear infinite; }
+  .sys-track.a, .sys-flow.a { stroke: var(--sys-a); } .sys-track.d, .sys-flow.d { stroke: var(--sys-d); }
+  .sys-track.m { stroke: var(--sys-m); opacity: .5; stroke-dasharray: 2 7; stroke-width: 2.5; }
+  .sys-flow.m { stroke: var(--sys-m); stroke-width: 3; stroke-dasharray: 0 15; animation-duration: 2.2s; }
+  .sys-ah.a { fill: var(--sys-a); } .sys-ah.d { fill: var(--sys-d); } .sys-ah.m { fill: var(--sys-m); }
+  .sys-key { list-style: none; margin: .5rem 0 0; padding: 0; display: flex; flex-wrap: wrap; justify-content: center; gap: .5rem 1.75rem; font-size: .875rem; color: var(--ap-fg2); }
+  .sys-key li { display: flex; align-items: center; gap: .55rem; }
+  .sys-key i { width: 1.6rem; height: 0; border-top: 4px dotted; }
+  .sys-key i.a { color: var(--sys-a); } .sys-key i.d { color: var(--sys-d); } .sys-key i.m { color: var(--sys-m); border-top-width: 3px; }
+  .hp.ap-js .sys-card .sys-node { opacity: 0; transform-box: fill-box; transition: opacity .7s var(--ap-ease); transition-delay: calc(var(--i) * 90ms + 250ms); }
+  .hp.ap-js .sys-card.in .sys-node { opacity: 1; }
+  @keyframes sys-run { to { stroke-dashoffset: -30; } }
+  @keyframes sys-rec { 50% { opacity: .25; } }
+
+  @media (prefers-reduced-motion: reduce) {
+    .hp *, .hp *::before { animation: none !important; transition: none !important; }
+    .hp.ap-js [data-reveal] { opacity: 1; transform: none; }
+  }
+</style>
+
+<div class="hp">
+  <div class="ap-nav"><div class="ap-nav-in">
+    <span class="ap-brand">CPE Honeypot Watch</span>
+    <nav class="hp-tabs" role="tablist" aria-label="หน้า" data-en-aria="Pages">
+      <button class="hp-tab" role="tab" id="tab-overview" data-tab="overview" aria-selected="true"><span data-l="th">ภาพรวม</span><span data-l="en">Overview</span></button>
+      <button class="hp-tab" role="tab" id="tab-map" data-tab="map" aria-selected="false"><span data-l="th">แผนที่การโจมตี</span><span data-l="en">Attack map</span></button>
+      <button class="hp-tab" role="tab" id="tab-bots" data-tab="bots" aria-selected="false"><span data-l="th">พฤติกรรมบอท + สิ่งที่ vendor ต้องเช็ค</span><span data-l="en">Bot behaviour + vendor checklist</span></button>
+      <button class="hp-tab" role="tab" id="tab-system" data-tab="system" aria-selected="false"><span data-l="th">ผังระบบ</span><span data-l="en">System</span></button>
+    </nav>
+    <div class="hp-lang" role="group" aria-label="Language / ภาษา" data-draw="lang-ui"><button type="button" data-lang-set="th" aria-pressed="true">TH</button><button type="button" data-lang-set="en" aria-pressed="false">EN</button></div>
+  </div></div>
+
+  <section class="hp-page" id="overview" data-page="overview">
+    <header class="hp-head hp-hero" id="top">
+      <h1 class="hp-eyebrow">CPE Honeypot Watch</h1>
+      <p class="hp-take"><span data-l="th">บอทเจอพอร์ตที่เปิดภายใน </span><span data-l="en">Bots found the open ports within </span><b data-draw="k-first" data-source="kpis" data-field="first_minutes" data-row="0">—</b><span data-l="th"> นาที และ login ผ่านด้วยรหัสที่เดาได้ </span><span data-l="en"> minutes and logged in with guessable passwords </span><b data-draw="k-ok" data-source="kpis" data-field="login_success" data-row="0">—</b><span data-l="th"> ครั้ง ใน </span><span data-l="en"> times over </span><b data-draw="k-days" data-source="kpis" data-field="days" data-row="0">—</b><span data-l="th"> วันที่เก็บข้อมูล</span><span data-l="en"> days of data</span></p>
+      <p class="hp-lede"><span data-l="th">เครื่องล่อที่ปลอมตัวเป็น router/ONU บ้าน เปิด Telnet (23), SSH (22), HTTP (80, 8080) และ TR-069 (7547) ออก internet ตรง ๆ แบบเดียวกับ ONU ที่เปิด management ไว้ฝั่ง WAN แล้วบันทึกทุกอย่างที่บอทพยายามทำ</span><span data-l="en">A decoy that poses as a home router/ONU, exposing Telnet (23), SSH (22), HTTP (80, 8080) and TR-069 (7547) straight to the internet, the same way an ONU with management open on the WAN side would, and recording everything the bots try.</span></p>
+      <p class="hp-meta"><span data-l="th">เหตุการณ์ล่าสุดในข้อมูล </span><span data-l="en">Latest event in the data </span><span data-draw="k-gen" data-source="kpis" data-field="generated" data-row="0">—</span><span data-l="th"> (เวลาไทย) · ตัด IP ของทีมเองออกแล้ว</span><span data-l="en"> (Bangkok time) · the team’s own IPs are excluded</span></p>
+    </header>
+    <section class="hp-tiles" aria-label="ภาพรวม" data-en-aria="Overview">
+      <div class="hp-tile">
+        <span class="hp-tile-l"><span data-l="th">การเชื่อมต่อทั้งหมด</span><span data-l="en">All connections</span></span>
+        <span class="hp-tile-v" data-draw="k-total" data-source="kpis" data-field="total" data-row="0">—</span>
+        <span class="hp-tile-n"><span data-l="th">ทุกพอร์ต ทุกวัน</span><span data-l="en">every port, every day</span></span>
+      </div>
+      <div class="hp-tile">
+        <span class="hp-tile-l">Telnet sessions</span>
+        <span class="hp-tile-v" data-draw="k-telnet" data-source="kpis" data-field="telnet" data-row="0">—</span>
+        <span class="hp-tile-n"><span data-l="th">พอร์ต 23</span><span data-l="en">port 23</span></span>
+      </div>
+      <div class="hp-tile is-bad">
+        <span class="hp-tile-l"><span data-l="th">Login ผ่านด้วยรหัสเดา</span><span data-l="en">Logins with guessed passwords</span></span>
+        <span class="hp-tile-v" data-draw="k-ok2" data-source="kpis" data-field="login_success" data-row="0">—</span>
+        <span class="hp-tile-n"><span data-l="th">honeypot ยอมให้เข้า เพื่อดูว่าบอททำอะไรต่อ</span><span data-l="en">the honeypot lets them in to see what they do next</span></span>
+      </div>
+      <div class="hp-tile">
+        <span class="hp-tile-l"><span data-l="th">นาทีถึงการติดต่อครั้งแรก</span><span data-l="en">Minutes to first contact</span></span>
+        <span class="hp-tile-v" data-draw="k-first2" data-source="kpis" data-field="first_minutes" data-row="0">—</span>
+        <span class="hp-tile-n"><span data-l="th">นับจากเปิดพอร์ต (ประมาณ)</span><span data-l="en">from opening the ports (approx.)</span></span>
+      </div>
+    </section>
+
+    <div class="hp-grid">
+      <article class="hp-card" id="daily">
+        <h2><span data-l="th">การเชื่อมต่อต่อวัน แยกตามบริการ</span><span data-l="en">Connections per day, by service</span></h2>
+        <p class="hp-note"><span data-l="th">นับตามวันเวลาไทย วันล่าสุดยังเก็บไม่ครบวัน</span><span data-l="en">Counted by Bangkok-time day; the latest day is still incomplete</span></p>
+        <ul class="hp-legend">
+          <li><i class="hp-sw" data-sw="0"></i>Telnet 23</li>
+          <li><i class="hp-sw" data-sw="1"></i>SSH 22</li>
+          <li><i class="hp-sw" data-sw="2"></i>HTTP 80</li>
+          <li><i class="hp-sw" data-sw="3"></i>TR-069 7547</li>
+          <li><i class="hp-sw" data-sw="4"></i>HTTP 8080</li>
+        </ul>
+        <div class="hp-chart" data-draw="daily" data-source="daily_conn"></div>
+      </article>
+      <article class="hp-card" id="hours">
+        <h2><span data-l="th">ช่วงเวลาที่โดนเข้ามา</span><span data-l="en">When the attacks arrive</span></h2>
+        <p class="hp-note"><span data-l="th">รวมทุกวัน แยกตามชั่วโมง (เวลาไทย)</span><span data-l="en">All days added up by hour (Bangkok time)</span></p>
+        <div class="hp-chart" data-draw="hours" data-source="hourly_all"></div>
+      </article>
+    </div>
+
+    <div class="hp-grid">
+      <article class="hp-card" id="creds">
+        <h2><span data-l="th">Username/password ที่บอทใช้</span><span data-l="en">Usernames/passwords the bots tried</span></h2>
+        <p class="hp-note"><span data-l="th">รหัส default ของอุปกรณ์คือสิ่งแรกที่บอทลอง</span><span data-l="en">Device default passwords are the first thing bots try</span></p>
+        <div class="hp-tablebox">
+          <table class="hp-table" data-source="creds_all" data-row-key="item">
+            <thead><tr><th data-field="item">username/password</th><th class="num" data-field="n"><span data-l="th">ครั้ง</span><span data-l="en">times</span></th><th class="num" data-field="days"><span data-l="th">วัน</span><span data-l="en">days</span></th></tr></thead>
+            <tbody data-draw="creds"></tbody>
+          </table>
+        </div>
+      </article>
+      <article class="hp-card" id="ips">
+        <h2><span data-l="th">IP ที่เข้ามาบ่อยที่สุด</span><span data-l="en">Busiest source IPs</span></h2>
+        <p class="hp-note"><span data-l="th">รวมจาก 10 อันดับแรกของแต่ละวัน</span><span data-l="en">Added up from each day’s top 10</span></p>
+        <div class="hp-tablebox">
+          <table class="hp-table" data-source="ips_all" data-row-key="item">
+            <thead><tr><th data-field="item"><span data-l="th">IP ต้นทาง</span><span data-l="en">source IP</span></th><th class="num" data-field="n"><span data-l="th">การเชื่อมต่อ</span><span data-l="en">connections</span></th><th class="num" data-field="days"><span data-l="th">วัน</span><span data-l="en">days</span></th></tr></thead>
+            <tbody data-draw="ips"></tbody>
+          </table>
+        </div>
+      </article>
+    </div>
+
+    <article class="hp-card" id="commands">
+      <h2><span data-l="th">คำสั่งที่บอทพิมพ์หลัง login</span><span data-l="en">Commands typed after login</span></h2>
+      <p class="hp-note"><span data-l="th">คอลัมน์ความหมายเป็นการตีความจากรูปแบบคำสั่งที่รู้จักกัน ไม่ได้ยืนยันจากตัว malware · URL และ IP ในคำสั่งถูกทำให้กดไม่ได้ (hxxp, [.])</span><span data-l="en">The meaning column is a reading of known command patterns, not confirmed from the malware itself · URLs and IPs in commands are defanged (hxxp, [.])</span></p>
+      <div class="hp-tablebox">
+        <table class="hp-table" data-source="cmds_all" data-row-key="item">
+          <thead><tr><th data-field="item"><span data-l="th">คำสั่ง</span><span data-l="en">command</span></th><th data-field="meaning"><span data-l="th">ความหมาย (ตีความ)</span><span data-l="en">meaning (interpreted)</span></th><th class="num" data-field="n"><span data-l="th">ครั้ง</span><span data-l="en">times</span></th></tr></thead>
+          <tbody data-draw="cmds"></tbody>
+        </table>
+      </div>
+    </article>
+
+    <div class="hp-grid">
+      <article class="hp-card" id="http">
+        <h2><span data-l="th">Request ที่ยิงเข้า HTTP และ TR-069</span><span data-l="en">Requests sent to HTTP and TR-069</span></h2>
+        <p class="hp-note"><span data-l="th">บรรทัดแรกของ request แยกตามพอร์ต</span><span data-l="en">First line of each request, by port</span></p>
+        <div class="hp-tablebox">
+          <table class="hp-table" data-source="http_all" data-row-key="port,item">
+            <thead><tr><th data-field="port"><span data-l="th">พอร์ต</span><span data-l="en">port</span></th><th data-field="item">request</th><th class="num" data-field="n"><span data-l="th">ครั้ง</span><span data-l="en">times</span></th></tr></thead>
+            <tbody data-draw="http"></tbody>
+          </table>
+        </div>
+        <p class="hp-empty hp-empty-http" hidden><span data-l="th">ยังไม่มี request ในช่วงนี้</span><span data-l="en">No requests in this period yet</span></p>
+      </article>
+      <article class="hp-card" id="malware">
+        <h2><span data-l="th">ไฟล์ที่บอทพยายามดาวน์โหลด</span><span data-l="en">Files the bots tried to download</span></h2>
+        <p class="hp-note"><span data-l="th">ใช้ sha256 ค้นใน VirusTotal ได้ ไม่ต้องเปิดไฟล์</span><span data-l="en">Look up the sha256 on VirusTotal; no need to open the file</span></p>
+        <div class="hp-tablebox">
+          <table class="hp-table" data-source="downloads_all" data-row-key="item">
+            <thead><tr><th data-field="item">URL</th><th data-field="sha">sha256</th><th data-field="first"><span data-l="th">พบครั้งแรก</span><span data-l="en">first seen</span></th></tr></thead>
+            <tbody data-draw="dl"></tbody>
+          </table>
+        </div>
+        <p class="hp-empty hp-empty-dl" hidden><span data-l="th">ยังไม่มีการดาวน์โหลด malware ในช่วงนี้</span><span data-l="en">No malware downloads in this period yet</span></p>
+      </article>
+    </div>
+
+    <section class="hp-sec" id="actions">
+      <h2><span data-l="th">สิ่งที่ควรทำกับ ONU ที่เราดูแล</span><span data-l="en">What to do on the ONUs we manage</span></h2>
+      <ul class="hp-actions">
+        <li><strong><span data-l="th">ปิด Telnet, SSH, HTTP 80/8080 ฝั่ง WAN เป็นค่าเริ่มต้น</span><span data-l="en">Close Telnet, SSH and HTTP 80/8080 on the WAN side by default</span></strong><span><span data-l="th">ทุกพอร์ตที่เปิดออก internet ถูกสแกนเจอภายในไม่กี่นาที ไม่ใช่หลายวัน</span><span data-l="en">Every port open to the internet is found within minutes, not days</span></span></li>
+        <li><strong><span data-l="th">ถ้าจำเป็นต้องเปิด ให้จำกัดต้นทางด้วย ACL</span><span data-l="en">If it must be open, restrict the source with an ACL</span></strong><span><span data-l="th">รับเฉพาะ IP ของระบบที่ต้องใช้จริง และปิด Telnet ทิ้งถ้ามี SSH แล้ว</span><span data-l="en">Accept only the IPs of systems that really need it, and drop Telnet when SSH exists</span></span></li>
+        <li><strong><span data-l="th">เลิกใช้รหัส default ที่เหมือนกันทุกเครื่อง</span><span data-l="en">Stop using a default password that is the same on every unit</span></strong><span><span data-l="th">รหัสในตารางด้านบนคือ list ที่บอทเดาทุกตัว ควรเป็นรหัสเฉพาะเครื่อง</span><span data-l="en">The passwords in the table above are the list every bot guesses; use a per-device password</span></span></li>
+        <li><strong><span data-l="th">TR-069 (7547) รับเฉพาะ ACS</span><span data-l="en">TR-069 (7547) from the ACS only</span></strong><span><span data-l="th">ตั้งที่ฝั่ง ONU ให้ connection request รับจาก IP ของ ACS เท่านั้น</span><span data-l="en">Set on the ONU side so connection requests are accepted only from the ACS IP</span></span></li>
+      </ul>
+      <p class="hp-note"><span data-l="th">วิธีเก็บข้อมูล: Cowrie จำลอง shell ของ SSH/Telnet และตัวดักพอร์ต HTTP/TR-069 บันทึก request ดิบ ไม่มีคำสั่งไหนรันจริงบนเครื่อง ตัวเลขนับเฉพาะ IP ภายนอก (ตัด IP ของทีม 2 ตัวออก)</span><span data-l="en">How it is collected: Cowrie emulates the SSH/Telnet shell and a catcher on the HTTP/TR-069 ports records raw requests; no command really runs on the machine. Counts include outside IPs only (the team’s 2 IPs are excluded).</span><span data-l="th"> ประเทศประมาณจาก IP ด้วยฐาน </span><span data-l="en"> Countries are approximated from the IP with </span><span data-draw="g-db" data-source="geo_kpis" data-field="db" data-row="0">—</span>.</p>
+    </section>
+  </section>
+
+  <section class="hp-page" id="map" data-page="map" hidden>
+    <div class="hp-head">
+      <h2 class="hp-title"><span data-l="th">บอทยิงเข้ามาจากไหน</span><span data-l="en">Where the bots attack from</span></h2>
+      <p class="hp-take"><span data-l="th">IP ที่เข้ามาหา honeypot มาจาก </span><span data-l="en">Source IPs came from </span><b data-draw="g-n" data-source="geo_kpis" data-field="countries" data-row="0">—</b><span data-l="th"> ประเทศ รวม </span><span data-l="en"> countries, </span><b data-draw="g-ips" data-source="geo_kpis" data-field="ips" data-row="0">—</b><span data-l="th"> IP · มากที่สุดคือ </span><span data-l="en"> IPs in all · the most from </span><b data-draw="g-top" data-source="geo_kpis" data-field="top" data-row="0">—</b><span data-l="th"> และทวีป</span><span data-l="en"> and </span><b data-draw="g-cont" data-source="geo_kpis" data-field="cont" data-row="0">—</b><span data-l="th"> คิดเป็น </span><span data-l="en"> accounts for </span><b data-draw="g-share" data-source="geo_kpis" data-field="share" data-row="0">—</b><span data-l="th"> ของ IP ทั้งหมด</span><span data-l="en"> of all IPs</span></p>
+    </div>
+
+    <article class="tm" id="attack-map" aria-label="แผนที่การโจมตีแบบเล่นซ้ำจาก log จริง" data-en-aria="Attack map replayed from real logs">
+      <header class="tm-head">
+        <div class="tm-brand"><i></i>CPE HONEYPOT · <span data-tm="brand">REPLAY</span></div>
+        <div class="tm-title">
+          <h3><span data-l="th">แผนที่การโจมตี honeypot</span><span data-l="en">Honeypot attack map</span></h3>
+          <p class="tm-count"><b data-tm="count">0</b> <span data-tm="countunit">ครั้ง</span> <span data-tm="countlabel">ในวันนี้</span></p>
+        </div>
+        <div class="tm-ctl">
+          <select data-tm="mode" aria-label="รูปแบบการแสดง" data-en-aria="View">
+            <option value="replay" data-en-text="Replay in time">เล่นซ้ำตามเวลา</option>
+            <option value="overview" data-en-text="Whole-day overview">ภาพรวมทั้งวัน</option>
+          </select>
+          <select data-draw="tm-day" data-source="tm_events" aria-label="เลือกวัน" data-en-aria="Day"></select>
+          <select data-tm="speed" aria-label="ความเร็ว" data-en-aria="Speed">
+            <option value="24" data-en-text="1 day in 1 min">1 วันใน 1 นาที</option>
+            <option value="8" selected data-en-text="1 day in 3 min">1 วันใน 3 นาที</option>
+            <option value="2.4" data-en-text="1 day in 10 min">1 วันใน 10 นาที</option>
+          </select>
+          <button type="button" class="tm-play" data-tm="play" aria-pressed="true" aria-label="หยุด/เล่น" data-en-aria="Pause/play">❚❚</button>
+        </div>
+      </header>
+      <div class="tm-stage" data-draw="tm-stage" data-source="tm_events">
+        <canvas role="img" aria-label="แผนที่โลกแบบจุด เส้นโจมตีวิ่งจากประเทศต้นทางเข้าหา honeypot ที่สิงคโปร์ ตามเวลาจริงใน log" data-en-aria="Dot world map; attack lines run from source countries to the honeypot in Singapore, in real log time"></canvas>
+        <div class="tm-clock"><span data-tm="clock">--:--</span><small data-tm="date">—</small></div>
+        <div class="tm-bar" data-tm="scrub" title="คลิกเพื่อข้ามไปช่วงเวลานั้น" data-en-title="Click to jump to that time"><i data-tm="prog"></i></div>
+        <div class="tm-tip" data-tm="tip" hidden></div>
+      </div>
+      <ul class="tm-legend" data-tm="legend"></ul>
+      <div class="tm-panels">
+        <section class="tm-panel tm-feed-panel">
+          <h4><span data-l="th">การโจมตีล่าสุด</span><span data-l="en">Latest attacks</span></h4>
+          <ol class="tm-feed" data-tm="feed"></ol>
+        </section>
+        <section class="tm-panel">
+          <h4><span data-l="th">ประเทศต้นทาง</span><span data-l="en">Source countries</span> <span data-tm="scope">(ถึงเวลาที่เล่น)</span></h4>
+          <ol class="tm-rank" data-tm="countries"></ol>
+        </section>
+        <section class="tm-panel">
+          <h4><span data-l="th">กลุ่มบอทที่พิมพ์คำสั่ง</span><span data-l="en">Bot families that typed commands</span> <span data-tm="scope2">(ถึงเวลาที่เล่น)</span></h4>
+          <ol class="tm-rank" data-tm="families"></ol>
+        </section>
+      </div>
+    </article>
+  </section>
+
+  <section class="hp-page" id="system" data-page="system" hidden>
+    <div class="hp-head">
+      <h2 class="hp-title"><span data-l="th">ระบบทำงานอย่างไร</span><span data-l="en">How it works</span></h2>
+    </div>
+    <div class="hp-card sys-card">
+      <svg class="sys-svg sys-wide" viewBox="0 0 1200 540" role="img" aria-label="ผังระบบ honeypot ตั้งแต่บอทจนถึง dashboard" data-en-aria="Honeypot system diagram from bots to dashboard"><defs><marker id="sys-m-a-w" viewBox="0 0 10 10" refX="7" refY="5" markerWidth="5" markerHeight="5" orient="auto-start-reverse"><path class="sys-ah a" d="M0 0 L10 5 L0 10 z"/></marker><marker id="sys-m-d-w" viewBox="0 0 10 10" refX="7" refY="5" markerWidth="5" markerHeight="5" orient="auto-start-reverse"><path class="sys-ah d" d="M0 0 L10 5 L0 10 z"/></marker><marker id="sys-m-m-w" viewBox="0 0 10 10" refX="7" refY="5" markerWidth="5" markerHeight="5" orient="auto-start-reverse"><path class="sys-ah m" d="M0 0 L10 5 L0 10 z"/></marker></defs><rect class="sys-gcp" x="200" y="64" width="616" height="330" rx="30"/><g transform="translate(238 98)"><path class="sys-cloud" d="M-10 8 H22 A10 10 0 0 0 20 -11 A14 14 0 0 0 -6 -12 A9 9 0 0 0 -10 8 Z"/></g><text class="sys-gl" x="278" y="104" text-anchor="start" data-l="th">Google Cloud · สิงคโปร์</text><text class="sys-gl" x="278" y="104" text-anchor="start" data-l="en">Google Cloud · Singapore</text><g class="sys-node" style="--i:1"><path class="sys-track a" d="M182 206 H292"/><path class="sys-flow a" d="M182 206 H292" marker-end="url(#sys-m-a-w)"/></g><g class="sys-node" style="--i:3"><path class="sys-track a" d="M372 206 H436"/><path class="sys-flow a" d="M372 206 H436" marker-end="url(#sys-m-a-w)"/></g><g class="sys-node" style="--i:5"><path class="sys-track d" d="M600 206 H662"/><path class="sys-flow d" d="M600 206 H662" marker-end="url(#sys-m-d-w)"/></g><g class="sys-node" style="--i:7"><path class="sys-track d" d="M752 206 H850"/><path class="sys-flow d" d="M752 206 H850" marker-end="url(#sys-m-d-w)"/></g><g class="sys-node" style="--i:9"><path class="sys-track d" d="M952 206 H1014"/><path class="sys-flow d" d="M952 206 H1014" marker-end="url(#sys-m-d-w)"/></g><g class="sys-node" style="--i:11"><path class="sys-track m" d="M150 476 H284"/><path class="sys-flow m" d="M150 476 H284" marker-end="url(#sys-m-m-w)"/></g><g class="sys-node" style="--i:12"><path class="sys-track m" d="M376 476 H650 V364"/><path class="sys-flow m" d="M376 476 H650 V364" marker-end="url(#sys-m-m-w)"/></g><g class="sys-node" style="--i:13"><path class="sys-track m" d="M650 312 V236 H604"/><path class="sys-flow m" d="M650 312 V236 H604" marker-end="url(#sys-m-m-w)"/></g><g class="sys-node" style="--i:0" transform="translate(110 196)"><g class="sys-globe"><circle r="66"/><ellipse rx="28" ry="66"/><ellipse rx="54" ry="66"/><line x1="-66" y1="0" x2="66" y2="0"/><path d="M-58 -32 Q0 -22 58 -32"/><path d="M-58 32 Q0 22 58 32"/></g><g transform="translate(-30 -22) scale(1)" class="sys-bot"><line x1="0" y1="-24" x2="0" y2="-15"/><circle cx="0" cy="-27" r="3.5"/><rect x="-19" y="-15" width="38" height="30" rx="9"/><circle class="e" cx="-7" cy="0" r="3.6"/><circle class="e" cx="7" cy="0" r="3.6"/></g><g transform="translate(30 -8) scale(0.9)" class="sys-bot"><line x1="0" y1="-24" x2="0" y2="-15"/><circle cx="0" cy="-27" r="3.5"/><rect x="-19" y="-15" width="38" height="30" rx="9"/><circle class="e" cx="-7" cy="0" r="3.6"/><circle class="e" cx="7" cy="0" r="3.6"/></g><g transform="translate(-4 30) scale(1.05)" class="sys-bot"><line x1="0" y1="-24" x2="0" y2="-15"/><circle cx="0" cy="-27" r="3.5"/><rect x="-19" y="-15" width="38" height="30" rx="9"/><circle class="e" cx="-7" cy="0" r="3.6"/><circle class="e" cx="7" cy="0" r="3.6"/></g></g><g class="sys-node" style="--i:0"><g class="sys-step"><circle cx="56" cy="112" r="13"/><text x="56" y="116.5">1</text></g><text class="sys-l" x="110" y="300" text-anchor="middle" data-l="th">บอททั่วโลก</text><text class="sys-l" x="110" y="300" text-anchor="middle" data-l="en">Bots worldwide</text><text class="sys-n" x="106" y="330" text-anchor="end" data-draw="sys-cc-w" data-source="geo_kpis" data-field="countries" data-row="0">—</text><text class="sys-u" x="114" y="330" text-anchor="start" data-l="th">ประเทศ</text><text class="sys-u" x="114" y="330" text-anchor="start" data-l="en">countries</text><text class="sys-n" x="106" y="356" text-anchor="end" data-draw="sys-total-w" data-source="kpis" data-field="total" data-row="0">—</text><text class="sys-u" x="114" y="356" text-anchor="start" data-l="th">ครั้ง</text><text class="sys-u" x="114" y="356" text-anchor="start" data-l="en">hits</text></g><g class="sys-node" style="--i:2" transform="translate(332 206)"><g class="sys-ico"><rect x="-30" y="-40" width="60" height="80" rx="6"/><line x1="-15" y1="-40" x2="-15" y2="-24"/><line x1="15" y1="-40" x2="15" y2="-24"/><line x1="-30" y1="-24" x2="30" y2="-24"/><line x1="0" y1="-24" x2="0" y2="-8"/><line x1="-30" y1="-8" x2="30" y2="-8"/><line x1="-15" y1="-8" x2="-15" y2="8"/><line x1="15" y1="-8" x2="15" y2="8"/><line x1="-30" y1="8" x2="30" y2="8"/><line x1="0" y1="8" x2="0" y2="24"/><line x1="-30" y1="24" x2="30" y2="24"/><line x1="-15" y1="24" x2="-15" y2="40"/><line x1="15" y1="24" x2="15" y2="40"/></g></g><g class="sys-node" style="--i:2"><g class="sys-step"><circle cx="332" cy="140" r="13"/><text x="332" y="144.5">2</text></g><text class="sys-l" x="332" y="274" text-anchor="middle" data-l="th">พอร์ตแบบ ONU</text><text class="sys-l" x="332" y="274" text-anchor="middle" data-l="en">ONU-style ports</text><g class="sys-port"><rect x="219.0" y="290" width="34" height="22" rx="11"/><text x="236.0" y="305.5">22</text></g><g class="sys-port"><rect x="259.0" y="290" width="34" height="22" rx="11"/><text x="276.0" y="305.5">23</text></g><g class="sys-port"><rect x="299.0" y="290" width="34" height="22" rx="11"/><text x="316.0" y="305.5">80</text></g><g class="sys-port"><rect x="339.0" y="290" width="50" height="22" rx="11"/><text x="364.0" y="305.5">8080</text></g><g class="sys-port"><rect x="395.0" y="290" width="50" height="22" rx="11"/><text x="420.0" y="305.5">7547</text></g></g><g class="sys-node" style="--i:4" transform="translate(518 214)"><g class="sys-ico sys-onu"><line x1="-46" y1="-26" x2="-56" y2="-62"/><line x1="46" y1="-26" x2="56" y2="-62"/><circle cx="-56" cy="-64" r="3"/><circle cx="56" cy="-64" r="3"/><rect x="-74" y="-26" width="148" height="56" rx="14"/><circle class="led" cx="-48" cy="2" r="4.5"/><circle class="led" cx="-32" cy="2" r="4.5"/><circle class="led" cx="-16" cy="2" r="4.5"/><circle class="led rec" cx="52" cy="2" r="6"/></g></g><g class="sys-node" style="--i:4"><g class="sys-step"><circle cx="518" cy="128" r="13"/><text x="518" y="132.5">3</text></g><text class="sys-l big" x="518" y="278" text-anchor="middle" data-l="th">ONU ปลอม</text><text class="sys-l big" x="518" y="278" text-anchor="middle" data-l="en">Decoy ONU</text><text class="sys-s" x="518" y="302" text-anchor="middle" data-l="th">จำลอง · ไม่รันคำสั่งจริง</text><text class="sys-s" x="518" y="302" text-anchor="middle" data-l="en">emulated · nothing really runs</text></g><g class="sys-node" style="--i:6" transform="translate(708 206)"><g class="sys-ico sys-data"><path d="M-34 -30 V30 A34 11 0 0 0 34 30 V-30"/><ellipse cx="0" cy="-30" rx="34" ry="11"/><path d="M-34 0 A34 11 0 0 0 34 0"/></g></g><g class="sys-node" style="--i:6"><g class="sys-step"><circle cx="708" cy="140" r="13"/><text x="708" y="144.5">4</text></g><text class="sys-l" x="708" y="274" text-anchor="middle" data-l="th">เก็บ log</text><text class="sys-l" x="708" y="274" text-anchor="middle" data-l="en">Logs</text></g><g class="sys-node" style="--i:8" transform="translate(902 206)"><g class="sys-ico sys-data"><circle cx="-6" cy="-6" r="28"/><polyline points="-24,2 -12,-10 -2,-2 12,-18"/><line x1="15" y1="15" x2="36" y2="36" class="thick"/></g></g><g class="sys-node" style="--i:8"><g class="sys-step"><circle cx="902" cy="140" r="13"/><text x="902" y="144.5">5</text></g><text class="sys-l" x="902" y="274" text-anchor="middle" data-l="th">วิเคราะห์</text><text class="sys-l" x="902" y="274" text-anchor="middle" data-l="en">Analyse</text></g><g class="sys-node" style="--i:10" transform="translate(1080 192)"><g class="sys-ico"><rect x="-46" y="-36" width="92" height="62" rx="8"/><line x1="0" y1="26" x2="0" y2="40"/><line x1="-20" y1="40" x2="20" y2="40"/><rect class="bar" x="-30" y="-6" width="12" height="22" rx="2"/><rect class="bar" x="-9" y="-20" width="12" height="36" rx="2"/><rect class="bar r" x="12" y="-14" width="12" height="30" rx="2"/></g></g><g class="sys-node" style="--i:10" transform="translate(1080 312)"><g class="sys-ico"><g transform="translate(-16 0) scale(0.9)"><circle cx="0" cy="-14" r="10"/><path d="M-18 22 Q-18 2 0 2 Q18 2 18 22 Z"/></g><g transform="translate(16 0) scale(0.9)"><circle cx="0" cy="-14" r="10"/><path d="M-18 22 Q-18 2 0 2 Q18 2 18 22 Z"/></g><g transform="translate(0 0) scale(1.08)"><circle cx="0" cy="-14" r="10"/><path d="M-18 22 Q-18 2 0 2 Q18 2 18 22 Z"/></g></g></g><g class="sys-node" style="--i:10"><g class="sys-step"><circle cx="1080" cy="128" r="13"/><text x="1080" y="132.5">6</text></g><text class="sys-l" x="1080" y="258" text-anchor="middle" data-l="th">Dashboard</text><text class="sys-l" x="1080" y="258" text-anchor="middle" data-l="en">Dashboard</text><text class="sys-l" x="1080" y="366" text-anchor="middle" data-l="th">ทีม · vendor</text><text class="sys-l" x="1080" y="366" text-anchor="middle" data-l="en">Team · vendors</text></g><g class="sys-node" style="--i:11" transform="translate(110 474)"><g class="sys-ico sys-adm"><rect x="-30" y="-24" width="60" height="38" rx="5"/><path d="M-40 18 H40 L34 26 H-34 Z"/></g></g><g class="sys-node" style="--i:11"><text class="sys-l m" x="110" y="520" text-anchor="middle" data-l="th">แอดมิน</text><text class="sys-l m" x="110" y="520" text-anchor="middle" data-l="en">Admin</text></g><g class="sys-node" style="--i:12" transform="translate(330 476)"><g class="sys-ico sys-adm"><rect x="-32" y="-24" width="64" height="48" rx="7"/><line x1="-32" y1="-12" x2="32" y2="-12"/><polyline points="-20,-2 -10,6 -20,14"/><line x1="-4" y1="14" x2="12" y2="14"/></g></g><g class="sys-node" style="--i:12"><text class="sys-l m" x="330" y="520" text-anchor="middle" data-l="th">Cloud Shell</text><text class="sys-l m" x="330" y="520" text-anchor="middle" data-l="en">Cloud Shell</text></g><g class="sys-node" style="--i:13" transform="translate(650 334)"><g class="sys-ico sys-lock"><path d="M-12 -4 V-14 A12 12 0 0 1 12 -14 V-4"/><rect x="-18" y="-4" width="36" height="28" rx="6"/><circle cx="0" cy="8" r="3.2" class="k"/></g></g><g class="sys-node" style="--i:13"><text class="sys-l m" x="680" y="336" text-anchor="start" data-l="th">IAP</text><text class="sys-l m" x="680" y="336" text-anchor="start" data-l="en">IAP</text><text class="sys-s" x="680" y="356" text-anchor="start" data-l="th">ทางเข้าเดียว</text><text class="sys-s" x="680" y="356" text-anchor="start" data-l="en">only way in</text></g></svg>
+      <svg class="sys-svg sys-tall" viewBox="0 0 400 1130" role="img" aria-label="ผังระบบ honeypot ตั้งแต่บอทจนถึง dashboard" data-en-aria="Honeypot system diagram from bots to dashboard"><defs><marker id="sys-m-a-t" viewBox="0 0 10 10" refX="7" refY="5" markerWidth="5" markerHeight="5" orient="auto-start-reverse"><path class="sys-ah a" d="M0 0 L10 5 L0 10 z"/></marker><marker id="sys-m-d-t" viewBox="0 0 10 10" refX="7" refY="5" markerWidth="5" markerHeight="5" orient="auto-start-reverse"><path class="sys-ah d" d="M0 0 L10 5 L0 10 z"/></marker><marker id="sys-m-m-t" viewBox="0 0 10 10" refX="7" refY="5" markerWidth="5" markerHeight="5" orient="auto-start-reverse"><path class="sys-ah m" d="M0 0 L10 5 L0 10 z"/></marker></defs><rect class="sys-gcp" x="16" y="226" width="368" height="560" rx="28"/><text class="sys-gl" x="366" y="258" text-anchor="end" data-l="th">Google Cloud · สิงคโปร์</text><text class="sys-gl" x="366" y="258" text-anchor="end" data-l="en">Google Cloud · Singapore</text><g class="sys-node" style="--i:1"><path class="sys-track a" d="M130 200 V300"/><path class="sys-flow a" d="M130 200 V300" marker-end="url(#sys-m-a-t)"/></g><g class="sys-node" style="--i:3"><path class="sys-track a" d="M130 404 V452"/><path class="sys-flow a" d="M130 404 V452" marker-end="url(#sys-m-a-t)"/></g><g class="sys-node" style="--i:5"><path class="sys-track d" d="M130 600 V650"/><path class="sys-flow d" d="M130 600 V650" marker-end="url(#sys-m-d-t)"/></g><g class="sys-node" style="--i:7"><path class="sys-track d" d="M130 760 V846"/><path class="sys-flow d" d="M130 760 V846" marker-end="url(#sys-m-d-t)"/></g><g class="sys-node" style="--i:9"><path class="sys-track d" d="M130 946 V990"/><path class="sys-flow d" d="M130 946 V990" marker-end="url(#sys-m-d-t)"/></g><g class="sys-node" style="--i:11"><path class="sys-track m" d="M318 1024 V850"/><path class="sys-flow m" d="M318 1024 V850" marker-end="url(#sys-m-m-t)"/></g><g class="sys-node" style="--i:12"><path class="sys-track m" d="M318 794 V568"/><path class="sys-flow m" d="M318 794 V568" marker-end="url(#sys-m-m-t)"/></g><g class="sys-node" style="--i:13"><path class="sys-track m" d="M318 512 V492 H212"/><path class="sys-flow m" d="M318 512 V492 H212" marker-end="url(#sys-m-m-t)"/></g><g class="sys-node" style="--i:0" transform="translate(130 104)"><g class="sys-globe"><circle r="66"/><ellipse rx="28" ry="66"/><ellipse rx="54" ry="66"/><line x1="-66" y1="0" x2="66" y2="0"/><path d="M-58 -32 Q0 -22 58 -32"/><path d="M-58 32 Q0 22 58 32"/></g><g transform="translate(-30 -22) scale(1)" class="sys-bot"><line x1="0" y1="-24" x2="0" y2="-15"/><circle cx="0" cy="-27" r="3.5"/><rect x="-19" y="-15" width="38" height="30" rx="9"/><circle class="e" cx="-7" cy="0" r="3.6"/><circle class="e" cx="7" cy="0" r="3.6"/></g><g transform="translate(30 -8) scale(0.9)" class="sys-bot"><line x1="0" y1="-24" x2="0" y2="-15"/><circle cx="0" cy="-27" r="3.5"/><rect x="-19" y="-15" width="38" height="30" rx="9"/><circle class="e" cx="-7" cy="0" r="3.6"/><circle class="e" cx="7" cy="0" r="3.6"/></g><g transform="translate(-4 30) scale(1.05)" class="sys-bot"><line x1="0" y1="-24" x2="0" y2="-15"/><circle cx="0" cy="-27" r="3.5"/><rect x="-19" y="-15" width="38" height="30" rx="9"/><circle class="e" cx="-7" cy="0" r="3.6"/><circle class="e" cx="7" cy="0" r="3.6"/></g></g><g class="sys-node" style="--i:0"><g class="sys-step"><circle cx="36" cy="40" r="13"/><text x="36" y="44.5">1</text></g><text class="sys-l" x="300" y="82" text-anchor="middle" data-l="th">บอททั่วโลก</text><text class="sys-l" x="300" y="82" text-anchor="middle" data-l="en">Bots worldwide</text><text class="sys-n" x="296" y="112" text-anchor="end" data-draw="sys-cc-t" data-source="geo_kpis" data-field="countries" data-row="0">—</text><text class="sys-u" x="304" y="112" text-anchor="start" data-l="th">ประเทศ</text><text class="sys-u" x="304" y="112" text-anchor="start" data-l="en">countries</text><text class="sys-n" x="296" y="138" text-anchor="end" data-draw="sys-total-t" data-source="kpis" data-field="total" data-row="0">—</text><text class="sys-u" x="304" y="138" text-anchor="start" data-l="th">ครั้ง</text><text class="sys-u" x="304" y="138" text-anchor="start" data-l="en">hits</text></g><g class="sys-node" style="--i:2" transform="translate(130 352)"><g class="sys-ico"><rect x="-30" y="-40" width="60" height="80" rx="6"/><line x1="-15" y1="-40" x2="-15" y2="-24"/><line x1="15" y1="-40" x2="15" y2="-24"/><line x1="-30" y1="-24" x2="30" y2="-24"/><line x1="0" y1="-24" x2="0" y2="-8"/><line x1="-30" y1="-8" x2="30" y2="-8"/><line x1="-15" y1="-8" x2="-15" y2="8"/><line x1="15" y1="-8" x2="15" y2="8"/><line x1="-30" y1="8" x2="30" y2="8"/><line x1="0" y1="8" x2="0" y2="24"/><line x1="-30" y1="24" x2="30" y2="24"/><line x1="-15" y1="24" x2="-15" y2="40"/><line x1="15" y1="24" x2="15" y2="40"/></g></g><g class="sys-node" style="--i:2"><g class="sys-step"><circle cx="66" cy="312" r="13"/><text x="66" y="316.5">2</text></g><text class="sys-l" x="282" y="330" text-anchor="middle" data-l="th">พอร์ตแบบ ONU</text><text class="sys-l" x="282" y="330" text-anchor="middle" data-l="en">ONU-style ports</text><g class="sys-port"><rect x="225.0" y="344" width="34" height="22" rx="11"/><text x="242.0" y="359.5">22</text></g><g class="sys-port"><rect x="265.0" y="344" width="34" height="22" rx="11"/><text x="282.0" y="359.5">23</text></g><g class="sys-port"><rect x="305.0" y="344" width="34" height="22" rx="11"/><text x="322.0" y="359.5">80</text></g><g class="sys-port"><rect x="229.0" y="372" width="50" height="22" rx="11"/><text x="254.0" y="387.5">8080</text></g><g class="sys-port"><rect x="285.0" y="372" width="50" height="22" rx="11"/><text x="310.0" y="387.5">7547</text></g></g><g class="sys-node" style="--i:4" transform="translate(130 504)"><g class="sys-ico sys-onu"><line x1="-46" y1="-26" x2="-56" y2="-62"/><line x1="46" y1="-26" x2="56" y2="-62"/><circle cx="-56" cy="-64" r="3"/><circle cx="56" cy="-64" r="3"/><rect x="-74" y="-26" width="148" height="56" rx="14"/><circle class="led" cx="-48" cy="2" r="4.5"/><circle class="led" cx="-32" cy="2" r="4.5"/><circle class="led" cx="-16" cy="2" r="4.5"/><circle class="led rec" cx="52" cy="2" r="6"/></g></g><g class="sys-node" style="--i:4"><g class="sys-step"><circle cx="36" cy="438" r="13"/><text x="36" y="442.5">3</text></g><text class="sys-l big" x="130" y="572" text-anchor="middle" data-l="th">ONU ปลอม</text><text class="sys-l big" x="130" y="572" text-anchor="middle" data-l="en">Decoy ONU</text><text class="sys-s" x="130" y="594" text-anchor="middle" data-l="th">จำลอง · ไม่รันคำสั่งจริง</text><text class="sys-s" x="130" y="594" text-anchor="middle" data-l="en">emulated · nothing runs</text></g><g class="sys-node" style="--i:6" transform="translate(130 704)"><g class="sys-ico sys-data"><path d="M-34 -30 V30 A34 11 0 0 0 34 30 V-30"/><ellipse cx="0" cy="-30" rx="34" ry="11"/><path d="M-34 0 A34 11 0 0 0 34 0"/></g></g><g class="sys-node" style="--i:6"><g class="sys-step"><circle cx="66" cy="664" r="13"/><text x="66" y="668.5">4</text></g><text class="sys-l" x="186" y="710" text-anchor="start" data-l="th">เก็บ log</text><text class="sys-l" x="186" y="710" text-anchor="start" data-l="en">Logs</text></g><g class="sys-node" style="--i:8" transform="translate(130 898)"><g class="sys-ico sys-data"><circle cx="-6" cy="-6" r="28"/><polyline points="-24,2 -12,-10 -2,-2 12,-18"/><line x1="15" y1="15" x2="36" y2="36" class="thick"/></g></g><g class="sys-node" style="--i:8"><g class="sys-step"><circle cx="66" cy="856" r="13"/><text x="66" y="860.5">5</text></g><text class="sys-l" x="186" y="904" text-anchor="start" data-l="th">วิเคราะห์</text><text class="sys-l" x="186" y="904" text-anchor="start" data-l="en">Analyse</text></g><g class="sys-node" style="--i:10" transform="translate(80 1040)"><g class="sys-ico"><rect x="-46" y="-36" width="92" height="62" rx="8"/><line x1="0" y1="26" x2="0" y2="40"/><line x1="-20" y1="40" x2="20" y2="40"/><rect class="bar" x="-30" y="-6" width="12" height="22" rx="2"/><rect class="bar" x="-9" y="-20" width="12" height="36" rx="2"/><rect class="bar r" x="12" y="-14" width="12" height="30" rx="2"/></g></g><g class="sys-node" style="--i:10" transform="translate(196 1046)"><g class="sys-ico"><g transform="translate(-16 0) scale(0.9)"><circle cx="0" cy="-14" r="10"/><path d="M-18 22 Q-18 2 0 2 Q18 2 18 22 Z"/></g><g transform="translate(16 0) scale(0.9)"><circle cx="0" cy="-14" r="10"/><path d="M-18 22 Q-18 2 0 2 Q18 2 18 22 Z"/></g><g transform="translate(0 0) scale(1.08)"><circle cx="0" cy="-14" r="10"/><path d="M-18 22 Q-18 2 0 2 Q18 2 18 22 Z"/></g></g></g><g class="sys-node" style="--i:10"><g class="sys-step"><circle cx="36" cy="990" r="13"/><text x="36" y="994.5">6</text></g><text class="sys-l" x="80" y="1108" text-anchor="middle" data-l="th">Dashboard</text><text class="sys-l" x="80" y="1108" text-anchor="middle" data-l="en">Dashboard</text><text class="sys-l" x="196" y="1108" text-anchor="middle" data-l="th">ทีม · vendor</text><text class="sys-l" x="196" y="1108" text-anchor="middle" data-l="en">Team · vendors</text></g><g class="sys-node" style="--i:11" transform="translate(318 1050)"><g class="sys-ico sys-adm"><rect x="-30" y="-24" width="60" height="38" rx="5"/><path d="M-40 18 H40 L34 26 H-34 Z"/></g></g><g class="sys-node" style="--i:11"><text class="sys-l m" x="318" y="1098" text-anchor="middle" data-l="th">แอดมิน</text><text class="sys-l m" x="318" y="1098" text-anchor="middle" data-l="en">Admin</text></g><g class="sys-node" style="--i:12" transform="translate(318 820)"><g class="sys-ico sys-adm"><rect x="-32" y="-24" width="64" height="48" rx="7"/><line x1="-32" y1="-12" x2="32" y2="-12"/><polyline points="-20,-2 -10,6 -20,14"/><line x1="-4" y1="14" x2="12" y2="14"/></g></g><g class="sys-node" style="--i:12"><text class="sys-l m" x="278" y="826" text-anchor="end" data-l="th">Cloud Shell</text><text class="sys-l m" x="278" y="826" text-anchor="end" data-l="en">Cloud Shell</text></g><g class="sys-node" style="--i:13" transform="translate(318 538)"><g class="sys-ico sys-lock"><path d="M-12 -4 V-14 A12 12 0 0 1 12 -14 V-4"/><rect x="-18" y="-4" width="36" height="28" rx="6"/><circle cx="0" cy="8" r="3.2" class="k"/></g></g><g class="sys-node" style="--i:13"><text class="sys-l m" x="290" y="548" text-anchor="end" data-l="th">IAP</text><text class="sys-l m" x="290" y="548" text-anchor="end" data-l="en">IAP</text></g></svg>
+      <ul class="sys-key">
+        <li><i class="a"></i><span data-l="th">การโจมตี</span><span data-l="en">Attacks</span></li>
+        <li><i class="d"></i><span data-l="th">ข้อมูล log</span><span data-l="en">Log data</span></li>
+        <li><i class="m"></i><span data-l="th">แอดมิน (ผ่าน IAP เท่านั้น)</span><span data-l="en">Admin (IAP only)</span></li>
+      </ul>
+    </div>
+  </section>
+
+
+  <section class="hp-page" id="bots" data-page="bots" hidden>
+    <div class="hp-head">
+      <h2 class="hp-title"><span data-l="th">บอทที่พยายามยึด CPE แบบเรา ทำอะไรบ้าง</span><span data-l="en">What bots do to a CPE like ours</span></h2>
+      <p class="hp-take"><span data-l="th">พบ </span><span data-l="en">Found </span><b data-draw="b-fam" data-source="bot_kpis" data-field="families" data-row="0">—</b><span data-l="th"> กลุ่มบอทที่พิมพ์คำสั่ง ในนั้น </span><span data-l="en"> bot families that typed commands; </span><b data-draw="b-mirai" data-source="bot_kpis" data-field="mirai" data-row="0">—</b><span data-l="th"> กลุ่มใช้ลำดับคำสั่งแบบ Mirai และ </span><span data-l="en"> follow the Mirai command order and </span><b data-draw="b-kill" data-source="bot_kpis" data-field="killers" data-row="0">—</b><span data-l="th"> กลุ่มไล่ฆ่าหรือล็อกบอทตัวอื่นออกเพื่อยึดเครื่องไว้คนเดียว</span><span data-l="en"> kill or lock out other bots to keep the device to themselves</span></p>
+      <p class="hp-meta"><span data-l="th">การระบุตระกูลบอทเป็นการอนุมานจากรูปแบบคำสั่ง ยังไม่ได้ยืนยันจากตัว malware · ป้ายชื่อกลุ่มคือคำที่บอทส่งให้ busybox (เช่น HISILICON) กลุ่มที่ไม่มีป้ายตั้งชื่อเป็น dropper:&lt;ชื่อไฟล์ที่โหลด&gt; หรือ fam-&lt;รหัสชุดคำสั่ง&gt; · login-only คือ session ที่ login แล้วไม่พิมพ์คำสั่ง</span><span data-l="en">Family attribution is inferred from the command patterns, not confirmed from the malware · a family’s name is the marker the bot sent to busybox (e.g. HISILICON); families without one are named dropper:&lt;downloaded file&gt; or fam-&lt;command-set id&gt; · login-only = sessions that logged in and typed nothing</span></p>
+    </div>
+
+    <article class="hp-card" id="families">
+      <h2><span data-l="th">กลุ่มบอท (จัดกลุ่มจาก IP และชุดคำสั่งที่ใช้ร่วมกัน)</span><span data-l="en">Bot families (grouped by shared IPs and command sets)</span></h2>
+      <p class="hp-note"><span data-l="th">จุดน้ำเงินทึบ = มีพฤติกรรมยึดเครื่องหรือวางไฟล์ · วงแหวนน้ำเงิน = เช็คอุปกรณ์/หลุด CLI · ดูหน้าจอของกลุ่มนั้นได้ด้วยคำสั่งในคอลัมน์สุดท้าย</span><span data-l="en">Solid blue dot = takes over the device or drops files · blue ring = device checks / CLI escape · replay a family’s screen with the command in the last column</span></p>
+      <div class="hp-tablebox">
+        <table class="hp-table" data-source="bot_families" data-row-key="family">
+          <thead><tr><th data-field="family"><span data-l="th">ป้ายบอท</span><span data-l="en">bot marker</span></th><th data-field="likely"><span data-l="th">น่าจะเป็น (อนุมาน)</span><span data-l="en">likely (inferred)</span></th><th data-field="evidence"><span data-l="th">หลักฐาน</span><span data-l="en">evidence</span></th><th class="num" data-field="sessions">sessions</th><th class="num" data-field="ips">IP</th><th data-field="creds"><span data-l="th">login ที่ผ่าน</span><span data-l="en">logins that worked</span></th><th data-field="tags"><span data-l="th">พฤติกรรม</span><span data-l="en">behaviour</span></th><th data-field="last"><span data-l="th">ล่าสุด</span><span data-l="en">last seen</span></th><th data-field="replay"><span data-l="th">ดูหน้าจอ</span><span data-l="en">replay</span></th></tr></thead>
+          <tbody data-draw="families"></tbody>
+        </table>
+      </div>
+    </article>
+
+    <article class="hp-card" id="steps">
+      <h2><span data-l="th">สิ่งที่บอทพิมพ์ ทีละขั้น</span><span data-l="en">What the bot typed, step by step</span></h2>
+      <p class="hp-note"><span data-l="th">จาก session ที่ทำครบที่สุดของกลุ่ม · บรรทัดที่ซ้ำติดกันรวมเป็นบรรทัดเดียว (×n) · คำสั่งที่บอทส่งแบบเข้ารหัส XOR ถอดให้แล้ว</span><span data-l="en">From the family’s most complete session · consecutive repeats folded into one line (×n) · XOR-encoded commands are decoded</span></p>
+      <label class="hp-pick"><span data-l="th">กลุ่มบอท</span><span data-l="en">Bot family</span> <select data-draw="fam-pick" aria-label="เลือกกลุ่มบอท" data-en-aria="Choose a bot family" data-source="bot_families"></select></label>
+      <div class="hp-tablebox">
+        <table class="hp-table" data-source="bot_steps" data-row-key="family,order">
+          <thead><tr><th class="num" data-field="order">#</th><th data-field="command"><span data-l="th">คำสั่ง</span><span data-l="en">command</span></th><th data-field="meaning"><span data-l="th">ความหมาย</span><span data-l="en">meaning</span></th></tr></thead>
+          <tbody data-draw="steps"></tbody>
+        </table>
+      </div>
+    </article>
+
+    <article class="hp-card" id="vendor">
+      <h2><span data-l="th">สิ่งที่ vendor ต้องเช็คใน ONU</span><span data-l="en">What vendors must check in the ONU</span></h2>
+      <p class="hp-note"><span data-l="th">แต่ละแถวคือเทคนิคที่บอทใช้กับ honeypot จริง ซึ่งตั้งค่าเหมือน ONU ที่เปิด management ฝั่ง WAN · ตัวเลขคือจำนวน session ที่ใช้เทคนิคนั้น</span><span data-l="en">Each row is a technique bots really used on the honeypot, which is set up like an ONU with WAN-side management open · the number is the sessions that used it</span></p>
+      <div class="hp-tablebox">
+        <table class="hp-table">
+          <thead><tr><th><span data-l="th">บอททำอะไร</span><span data-l="en">what the bot did</span></th><th class="num">sessions</th><th><span data-l="th">ให้ vendor เช็คใน ONU</span><span data-l="en">what the vendor should check in the ONU</span></th><th><span data-l="th">อ้างอิง</span><span data-l="en">reference</span></th></tr></thead>
+          <tbody>
+            <tr><td class="wrap"><span data-l="th">ต่อเข้า Telnet ที่เปิดฝั่ง WAN</span><span data-l="en">Connected to Telnet open on the WAN side</span></td><td class="num"><b data-draw="tech" data-source="bot_tech" data-field="sessions" data-where="tag=ALL">—</b></td><td class="wrap"><span data-l="th">ปิด Telnet/SSH/HTTP management ฝั่ง WAN เป็นค่าเริ่มต้น ถ้าต้องเปิดให้จำกัดต้นทางด้วย ACL</span><span data-l="en">Close Telnet/SSH/HTTP management on the WAN side by default; if it must be open, restrict the source with an ACL</span></td><td>CWE-1188</td></tr>
+            <tr><td class="wrap"><span data-l="th">login ผ่านด้วยรหัส default/รหัสโรงงาน</span><span data-l="en">Logged in with a default/factory password</span></td><td class="num"><b data-draw="tech" data-source="bot_tech" data-field="sessions" data-where="tag=LOGIN">—</b></td><td class="wrap"><span data-l="th">ต้องไม่มีบัญชีที่รหัสเหมือนกันทุกเครื่อง (เช่น admin/admin, root/xc3511) บังคับเปลี่ยนรหัสครั้งแรก และล็อกหลังใส่ผิดหลายครั้ง</span><span data-l="en">No account may share a password across units (e.g. admin/admin, root/xc3511); force a change at first login and lock out after repeated failures</span></td><td>CWE-1392, CWE-798</td></tr>
+            <tr><td class="wrap"><span data-l="th">หลุดจาก CLI เข้า Linux shell ด้วยคำสั่งซ่อน (enable, system, shell, linuxshell) หรือ <code>ping ;sh</code></span><span data-l="en">Escaped the CLI into a Linux shell with hidden commands (enable, system, shell, linuxshell) or <code>ping ;sh</code></span></td><td class="num"><b data-draw="tech" data-source="bot_tech" data-field="sessions" data-where="tag=CLI-ESCAPE">—</b></td><td class="wrap"><span data-l="th">ลองคำสั่งเหล่านี้ใน CLI ของ ONU ทุกรุ่น ต้องไม่ได้ shell และคำสั่ง ping ต้องกรอง <code>; | $( ) `</code></span><span data-l="en">Try these commands in every ONU model’s CLI: none may give a shell, and ping must filter <code>; | $( ) `</code></span></td><td>CWE-78</td></tr>
+            <tr><td class="wrap"><span data-l="th">เรียก busybox ตรง ๆ เพื่อยืนยันว่าเป็น shell จริงและติดป้ายบอท</span><span data-l="en">Called busybox directly to confirm a real shell and tag the bot</span></td><td class="num"><b data-draw="tech" data-source="bot_tech" data-field="sessions" data-where="tag=DEVICE-CHECK">—</b></td><td class="wrap"><span data-l="th">ผู้ใช้ remote ต้องเรียก /bin/busybox ไม่ได้ ตัด applet ที่ไม่จำเป็นออก (echo -e, wget, tftp, telnetd)</span><span data-l="en">Remote users must not be able to run /bin/busybox; strip unneeded applets (echo -e, wget, tftp, telnetd)</span></td><td>CWE-1125</td></tr>
+            <tr><td class="wrap"><span data-l="th">ไล่หาโฟลเดอร์ที่เขียนและรันไฟล์ได้ (/tmp, /var, /dev/shm ...)</span><span data-l="en">Searched for folders it can write to and run files from (/tmp, /var, /dev/shm ...)</span></td><td class="num"><b data-draw="tech" data-source="bot_tech" data-field="sessions" data-where="tag=WRITABLE-DIR">—</b></td><td class="wrap"><span data-l="th">mount /tmp, /var, /dev/shm แบบ noexec และให้ rootfs เป็น read-only</span><span data-l="en">Mount /tmp, /var, /dev/shm noexec and keep the rootfs read-only</span></td><td></td></tr>
+            <tr><td class="wrap"><span data-l="th">วางสคริปต์ด้วย <code>echo -ne</code> ทีละท่อน (ใช้ได้แม้ไม่มี wget)</span><span data-l="en">Wrote a script piece by piece with <code>echo -ne</code> (works even without wget)</span></td><td class="num"><b data-draw="tech" data-source="bot_tech" data-field="sessions" data-where="tag=ECHO-LOADER">—</b></td><td class="wrap"><span data-l="th">การตัด wget อย่างเดียวไม่พอ ต้องมี noexec และจำกัด shell ร่วมด้วย</span><span data-l="en">Removing wget alone is not enough; noexec and a restricted shell are needed too</span></td><td></td></tr>
+            <tr><td class="wrap"><span data-l="th">ฆ่า process ที่ไฟล์ตัวเองถูกลบ (บอทตัวอื่น) เพื่อยึดเครื่อง</span><span data-l="en">Killed processes whose own file was deleted (other bots) to take over the device</span></td><td class="num"><b data-draw="tech" data-source="bot_tech" data-field="sessions" data-where="tag=KILLER">—</b></td><td class="wrap"><span data-l="th">ใช้เป็นตัวตรวจเครื่องที่โดนแล้ว: <code>ls -l /proc/*/exe | grep deleted</code> ต้องไม่มีผลลัพธ์</span><span data-l="en">Use it to spot infected units: <code>ls -l /proc/*/exe | grep deleted</code> must return nothing</span></td><td></td></tr>
+            <tr><td class="wrap"><span data-l="th">เปลี่ยนรหัส root ด้วย <code>passwd</code> หลังยึดได้ เพื่อล็อกบอทอื่นและเจ้าของออก</span><span data-l="en">Changed the root password with <code>passwd</code> after taking over, locking out other bots and the owner</span></td><td class="num"><b data-draw="tech" data-source="bot_tech" data-field="sessions" data-where="tag=PASSWD-LOCK">—</b></td><td class="wrap"><span data-l="th">บัญชีที่ใช้ remote ไม่ควรเปลี่ยนรหัส root ได้ ต้องมีทางกู้คืน/รีเซ็ตจาก ACS หรือปุ่ม reset และแจ้งเตือนเมื่อรหัสถูกเปลี่ยน</span><span data-l="en">Remote accounts should not be able to change the root password; there must be a recovery/reset path from the ACS or the reset button, and an alert when the password changes</span></td><td>CWE-269</td></tr>
+            <tr><td class="wrap"><span data-l="th">ฝังตัวให้กลับมาเข้าได้อีก เช่น เขียน SSH key ลง <code>~/.ssh/authorized_keys</code> แล้ว <code>chattr</code> กันลบ หรือแก้ crontab / rc.local</span><span data-l="en">Planted a way back in, e.g. wrote an SSH key to <code>~/.ssh/authorized_keys</code> and protected it with <code>chattr</code>, or edited crontab / rc.local</span></td><td class="num"><b data-draw="tech" data-source="bot_tech" data-field="sessions" data-where="tag=PERSIST">—</b></td><td class="wrap"><span data-l="th">root filesystem ของ ONU ควรเป็น read-only, ไม่ควรมีไฟล์ authorized_keys หรือ crontab ที่ผู้ใช้ remote เขียนได้ และ factory reset ต้องล้างทุกอย่างที่ถูกเขียนเพิ่ม</span><span data-l="en">The ONU root filesystem should be read-only, with no authorized_keys or crontab a remote user can write, and a factory reset must wipe everything that was added</span></td><td>CWE-732</td></tr>
+            <tr><td class="wrap"><span data-l="th">ยิง TR-069 connection request (พอร์ต 7547)</span><span data-l="en">Sent TR-069 connection requests (port 7547)</span></td><td class="num"><b data-draw="tech" data-source="bot_tech" data-field="sessions" data-where="tag=TR069">—</b></td><td class="wrap"><span data-l="th">พอร์ต 7547 รับเฉพาะ IP ของ ACS และต้องยืนยันตัวตนทุกครั้ง</span><span data-l="en">Port 7547 accepts only the ACS IP and must authenticate every time</span></td><td>TR-069</td></tr>
+          </tbody>
+        </table>
+      </div>
+      <p class="hp-src"><span data-l="th">อ้างอิงลำดับคำสั่ง Mirai: </span><span data-l="en">Mirai command order reference: </span><a href="https://raw.githubusercontent.com/jgamblin/Mirai-Source-Code/master/mirai/bot/scanner.c" target="_blank" rel="noopener">Mirai scanner.c</a> <span data-l="th">(ส่ง enable, system, shell, sh แล้ว query busybox หลัง login; string table เข้ารหัสด้วย XOR)</span><span data-l="en">(sends enable, system, shell, sh, then queries busybox after login; its string table is XOR-encoded)</span></p>
+    </article>
+  </section>
+</div>
+
+<script>{
+  const fmt = d3.format(',');
+  const SVCS = ['telnet', 'ssh', 'http80', 'tr069_7547', 'http8080'];
+  const SVC_LABEL = {telnet: 'Telnet 23', ssh: 'SSH 22', http80: 'HTTP 80', tr069_7547: 'TR-069 7547', http8080: 'HTTP 8080'};
+  const LANG = () => (dash.params().lang === 'en' ? 'en' : 'th');
+  const L = (th, en) => (LANG() === 'en' ? en : th);
+  window.HP = {fmt, SVCS, SVC_LABEL, L, LANG};
+  try { if (!dash.params().lang && localStorage.getItem('hp-lang') === 'en') dash.setParams({lang: 'en'}); } catch (e) { /* storage unavailable */ }
+  dash.draw('lang-ui', (box) => {
+    const l = LANG(), root = document.documentElement;
+    root.dataset.ui = l; root.lang = l;
+    box.querySelectorAll('[data-lang-set]').forEach((b) => {
+      b.setAttribute('aria-pressed', String(b.dataset.langSet === l));
+      b.onclick = () => { try { localStorage.setItem('hp-lang', b.dataset.langSet); } catch (e) { /* storage unavailable */ } dash.setParams({lang: b.dataset.langSet}); };
+    });
+    document.querySelectorAll('[data-en-aria]').forEach((el) => { if (el.dataset.thAria == null) el.dataset.thAria = el.getAttribute('aria-label') || ''; el.setAttribute('aria-label', l === 'en' ? el.dataset.enAria : el.dataset.thAria); });
+    document.querySelectorAll('[data-en-title]').forEach((el) => { if (el.dataset.thTitle == null) el.dataset.thTitle = el.getAttribute('title') || ''; el.setAttribute('title', l === 'en' ? el.dataset.enTitle : el.dataset.thTitle); });
+    document.querySelectorAll('[data-en-text]').forEach((el) => { if (el.dataset.thText == null) el.dataset.thText = el.textContent; el.textContent = l === 'en' ? el.dataset.enText : el.dataset.thText; });
+  });
+
+  const SERIES = ['var(--ap-s-telnet)', 'var(--ap-s-ssh)', 'var(--ap-s-http80)', 'var(--ap-s-tr069)', 'var(--ap-s-http8080)'];
+  document.querySelectorAll('[data-sw]').forEach((el) => { el.style.background = SERIES[Number(el.dataset.sw)]; });
+  const REDUCE = window.matchMedia && matchMedia('(prefers-reduced-motion: reduce)').matches;
+  // count a number up the first time it is seen on screen
+  const num = (el, v) => {
+    el.dataset.cu = v;
+    if (REDUCE || el.dataset.cuDone === String(v) || el.offsetParent === null) { el.textContent = fmt(v); return; }
+    el.dataset.cuDone = String(v);
+    const t0 = performance.now(), dur = 1400;
+    const step = (t) => {
+      if (el.dataset.cu !== String(v)) return;
+      const k = Math.min(1, (t - t0) / dur), e = 1 - Math.pow(1 - k, 4);
+      el.textContent = fmt(Math.round(v * e));
+      if (k < 1) requestAnimationFrame(step);
+    };
+    requestAnimationFrame(step);
+  };
+  // fade sections up as they scroll into view
+  const hp = document.querySelector('.hp');
+  const io = 'IntersectionObserver' in window && !REDUCE ? new IntersectionObserver((es) => {
+    for (const e of es) if (e.isIntersecting) { e.target.classList.add('in'); io.unobserve(e.target); }
+  }, {rootMargin: '0px 0px -8% 0px', threshold: 0.05}) : null;
+  const reveal = (root) => {
+    if (!io) return;
+    hp.classList.add('ap-js');
+    root.querySelectorAll('.hp-head > *, .hp-tile, .hp-card, .hp-sec > h2, .hp-sec > .hp-note, .hp-actions li, .tm').forEach((el) => {
+      const i = [...el.parentElement.children].indexOf(el);
+      el.dataset.reveal = ''; el.style.transitionDelay = `${(i % 4) * 80}ms`;
+      el.classList.remove('in'); io.observe(el);
+    });
+    root.querySelectorAll('[data-cu]').forEach((el) => { delete el.dataset.cuDone; num(el, Number(el.dataset.cu)); });
+  };
+  Object.assign(window.HP, {SERIES, num, reveal});
+  reveal(hp);
+
+  dash.calc('kpis', {
+    title: 'Headline figures',
+    description: 'Totals across all days, logins accepted, and minutes from opening the ports to the first outside contact.',
+    inputs: ['honeypot'],
+    fn: (honeypot) => {
+      let total = 0, telnet = 0, ok = 0, failed = 0;
+      const days = new Set(); const first = {};
+      let exposed = null, exposedDay = null, generated = null;
+      for (const r of honeypot) {
+        const n = Number(r.n) || 0;
+        if (r.kind === 'conn') { total += n; if (r.item === 'telnet') telnet += n; days.add(r.date); }
+        if (r.kind === 'metric' && r.item === 'login_success') ok += n;
+        if (r.kind === 'metric' && r.item === 'login_failed') failed += n;
+        if (r.kind === 'first_seen') first[r.date] = r.item;
+        if (r.kind === 'meta' && r.item === 'exposed_since') { exposed = r.extra; exposedDay = r.date; }
+        if (r.kind === 'meta' && r.item === 'generated_bkk') generated = r.extra;
+      }
+      let first_minutes = null;
+      if (exposed && first[exposedDay]) {
+        first_minutes = Math.round((new Date(`${exposedDay}T${first[exposedDay]}+07:00`) - new Date(exposed)) / 60000);
+      }
+      return [{total, telnet, login_success: ok, login_failed: failed, days: days.size, first_minutes,
+        generated: generated ? generated.slice(0, 16).replace('T', ' ') : null}];
+    },
+  });
+
+  dash.calc('daily_conn', {
+    title: 'Connections per day',
+    description: 'Each day’s connections, one column per service.',
+    inputs: ['honeypot'],
+    fn: (honeypot) => {
+      const by = {};
+      for (const r of honeypot) {
+        if (r.kind !== 'conn') continue;
+        const d = by[r.date] ?? (by[r.date] = {date: r.date, telnet: 0, ssh: 0, http80: 0, tr069_7547: 0, http8080: 0, total: 0});
+        d[r.item] = (d[r.item] || 0) + Number(r.n);
+        d.total += Number(r.n);
+      }
+      return Object.values(by).sort((a, b) => (a.date < b.date ? -1 : 1));
+    },
+  });
+
+  dash.calc('hourly_all', {
+    title: 'Connections by hour',
+    description: 'All days added up by hour of day, Bangkok time.',
+    inputs: ['honeypot'],
+    fn: (honeypot) => {
+      const n = Array.from({length: 24}, (_, h) => ({hour: String(h).padStart(2, '0'), n: 0}));
+      for (const r of honeypot) if (r.kind === 'hour') n[Number(r.item)].n += Number(r.n);
+      return n;
+    },
+  });
+
+
+  dash.calc('creds_all', {
+    title: 'Credentials tried',
+    description: 'Username/password pairs added up over all days.',
+    inputs: ['honeypot'],
+    fn: (honeypot) => {
+      const m = new Map();
+      for (const r of honeypot) {
+        if (r.kind !== 'cred') continue;
+        const o = m.get(r.item) ?? {item: r.item, n: 0, d: new Set()};
+        o.n += Number(r.n); o.d.add(r.date); m.set(r.item, o);
+      }
+      return [...m.values()].map((o) => ({item: o.item, n: o.n, days: o.d.size})).sort((a, b) => b.n - a.n);
+    },
+  });
+
+  dash.calc('ips_all', {
+    title: 'Busiest source IPs',
+    description: 'Each day’s top 10 source IPs, added up over all days.',
+    inputs: ['honeypot'],
+    fn: (honeypot) => {
+      const m = new Map();
+      for (const r of honeypot) {
+        if (r.kind !== 'ip') continue;
+        const o = m.get(r.item) ?? {item: r.item, n: 0, d: new Set()};
+        o.n += Number(r.n); o.d.add(r.date); m.set(r.item, o);
+      }
+      return [...m.values()].map((o) => ({item: o.item, n: o.n, days: o.d.size})).sort((a, b) => b.n - a.n).slice(0, 25);
+    },
+  });
+
+  dash.calc('cmds_all', {
+    title: 'Commands typed',
+    description: 'Commands added up over all days, with a reading of known bot patterns.',
+    inputs: ['honeypot'],
+    fn: (honeypot) => {
+      const MEANING = [
+        [/chmod 777 .*\.f/, 'หาโฟลเดอร์ที่เขียนไฟล์และรันได้ เพื่อวาง malware', 'looks for a folder it can write and run files in, to drop malware'],
+        [/busybox [A-Z0-9]{4,}$/, 'เช็คว่าเป็นอุปกรณ์ที่ใช้ busybox (คำท้ายเป็น tag ของบอท)', 'checks the device runs busybox (the last word is the bot’s tag)'],
+        [/\/proc\/self\/exe/, 'อ่านไฟล์ตัวเองเพื่อดูสถาปัตยกรรม CPU แล้วเลือก malware ให้ตรง', 'reads its own binary to learn the CPU architecture and pick matching malware'],
+        [/^(enable|system|shell|sh|ping; sh)$/, 'พยายามหลุดจาก CLI ของ router เข้า shell', 'tries to escape the router CLI into a shell'],
+        [/wget|curl|tftp|ftpget/, 'ดาวน์โหลด malware', 'downloads malware'],
+        [/^cd \//, 'ย้ายไปโฟลเดอร์ที่เขียนได้', 'moves into a writable folder'],
+      ];
+      const m = new Map();
+      for (const r of honeypot) {
+        if (r.kind !== 'cmd') continue;
+        const o = m.get(r.item) ?? {item: r.item, n: 0};
+        o.n += Number(r.n); m.set(r.item, o);
+      }
+      return [...m.values()].map((o) => { const hit = MEANING.find(([re]) => re.test(o.item)) || [null, '', '']; return {item: o.item, meaning: hit[1], meaning_en: hit[2], n: o.n}; })
+        .sort((a, b) => b.n - a.n);
+    },
+  });
+
+  dash.calc('http_all', {
+    title: 'HTTP and TR-069 requests',
+    description: 'First line of each request, by port, added up over all days.',
+    inputs: ['honeypot'],
+    fn: (honeypot) => {
+      const m = new Map();
+      for (const r of honeypot) {
+        if (r.kind !== 'http') continue;
+        const k = `${r.port} ${r.item}`;
+        const o = m.get(k) ?? {port: String(r.port), item: r.item, n: 0};
+        o.n += Number(r.n); m.set(k, o);
+      }
+      return [...m.values()].sort((a, b) => b.n - a.n);
+    },
+  });
+
+  dash.calc('downloads_all', {
+    title: 'Malware download attempts',
+    description: 'URLs the bots tried to fetch, with the file hash and the first day seen.',
+    inputs: ['honeypot'],
+    fn: (honeypot) => {
+      const m = new Map();
+      for (const r of honeypot) {
+        if (r.kind !== 'download') continue;
+        const o = m.get(r.item);
+        if (!o || r.date < o.first) m.set(r.item, {item: r.item, sha: r.extra || '-', first: r.date});
+      }
+      return [...m.values()].sort((a, b) => (a.first < b.first ? -1 : 1));
+    },
+  });
+}</script>
+
+<script>{
+  const {fmt, L} = window.HP;
+  const kpi = (field, f) => (el) => {
+    const k = dash.data('kpis');
+    const v = k.status === 'ok' && k.data[0] ? k.data[0][field] : null;
+    if (v == null) el.textContent = '—'; else if (typeof v === 'number') window.HP.num(el, v); else el.textContent = f(v);
+  };
+  dash.draw('k-first', kpi('first_minutes', (v) => fmt(v)));
+  dash.draw('k-first2', kpi('first_minutes', (v) => fmt(v)));
+  dash.draw('k-ok', kpi('login_success', fmt));
+  dash.draw('k-ok2', kpi('login_success', fmt));
+  dash.draw('k-days', kpi('days', fmt));
+  dash.draw('k-total', kpi('total', fmt));
+  dash.draw('k-telnet', kpi('telnet', fmt));
+  dash.draw('k-gen', kpi('generated', (v) => v));
+  dash.draw('sys-total-w', kpi('total', fmt));
+  dash.draw('sys-total-t', kpi('total', fmt));
+
+  const fillTable = (tbody, id, cols) => {
+    const d = dash.data(id);
+    const rows = d.status === 'ok' ? d.data : [];
+    tbody.replaceChildren(...rows.map((r) => {
+      const tr = document.createElement('tr');
+      for (const c of cols) {
+        const td = document.createElement('td');
+        if (c.num) { td.className = 'num'; td.textContent = fmt(r[c.f]); }
+        else if (c.code) { const code = document.createElement('code'); code.textContent = r[c.f]; td.append(code); }
+        else td.textContent = r[c.f] ?? '';
+        tr.append(td);
+      }
+      return tr;
+    }));
+    return rows.length;
+  };
+  dash.draw('creds', (tb) => fillTable(tb, 'creds_all', [{f: 'item', code: true}, {f: 'n', num: true}, {f: 'days', num: true}]));
+  dash.draw('ips', (tb) => fillTable(tb, 'ips_all', [{f: 'item', code: true}, {f: 'n', num: true}, {f: 'days', num: true}]));
+  dash.draw('cmds', (tb) => fillTable(tb, 'cmds_all', [{f: 'item', code: true}, {f: L('meaning', 'meaning_en')}, {f: 'n', num: true}]));
+  dash.draw('http', (tb) => fillTable(tb, 'http_all', [{f: 'port'}, {f: 'item', code: true}, {f: 'n', num: true}]));
+  dash.draw('dl', (tb) => fillTable(tb, 'downloads_all', [{f: 'item', code: true}, {f: 'sha', code: true}, {f: 'first'}]));
+
+  dash.onData(() => {
+    for (const [id, sel] of [['http_all', '.hp-empty-http'], ['downloads_all', '.hp-empty-dl']]) {
+      const d = dash.data(id);
+      const empty = d.status === 'ok' && d.data.length === 0;
+      document.querySelectorAll(sel).forEach((el) => { el.hidden = !empty; });
+    }
+  });
+}</script>
+
+<script>{
+  const {fmt: f2, SVCS, SVC_LABEL, L: L2} = window.HP;
+  const axisStyle = (g) => {
+    g.attr('font-size', null).attr('font-family', null);
+    g.selectAll('text').style('fill', 'var(--ap-gray)').style('font-size', '12px').style('font-family', 'var(--ap-font)');
+    g.selectAll('line').style('stroke', 'var(--ap-line)');
+    g.select('.domain').remove();
+  };
+  const tipFor = (box) => {
+    let tip = box.querySelector('.hp-tip');
+    if (!tip) { tip = document.createElement('div'); tip.className = 'hp-tip'; tip.hidden = true; box.append(tip); }
+    return tip;
+  };
+  const placeTip = (box, tip, x, y) => {
+    const bw = box.clientWidth; const tw = tip.offsetWidth;
+    tip.style.left = `${Math.max(0, Math.min(bw - tw, x - tw / 2))}px`;
+    tip.style.top = `${Math.max(0, y - tip.offsetHeight - 8)}px`;
+  };
+
+  dash.draw('daily', (box) => {
+    const d = dash.data('daily_conn');
+    box.replaceChildren();
+    if (d.status !== 'ok' || !d.data.length) return;
+    const rows = d.data;
+    const W = box.clientWidth || 600, H = 220, m = {t: 8, r: 8, b: 26, l: 36};
+    const x = d3.scaleBand(rows.map((r) => r.date), [m.l, W - m.r]).padding(0.3);
+    const ymax = d3.max(rows, (r) => r.total) || 1;
+    const y = d3.scaleLinear([0, ymax], [H - m.b, m.t]).nice();
+    const svg = d3.select(box).append('svg').attr('width', '100%').attr('viewBox', `0 0 ${W} ${H}`).attr('role', 'img');
+    svg.append('g').attr('transform', `translate(${m.l},0)`).call(d3.axisLeft(y).ticks(4).tickSize(-(W - m.l - m.r)).tickFormat(d3.format('~s'))).call(axisStyle);
+    const fdate = (s) => d3.utcFormat('%-d %b')(new Date(`${s}T00:00:00Z`));
+    svg.append('g').attr('transform', `translate(0,${H - m.b})`).call(d3.axisBottom(x).tickSize(0).tickPadding(8).tickValues(rows.map((r) => r.date).filter((_, i) => (rows.length - 1 - i) % Math.ceil(rows.length * 58 / (W - m.l - m.r)) === 0)).tickFormat(fdate)).call(axisStyle);
+    const stack = d3.stack().keys(SVCS)(rows);
+    const bw = Math.min(32, x.bandwidth());
+    const tip = tipFor(box);
+    svg.append('g').attr('class', 'ap-grow').selectAll('g').data(stack).join('g').style('fill', (_, i) => window.HP.SERIES[i])
+      .selectAll('rect').data((s) => s).join('rect')
+      .attr('x', (p) => x(p.data.date) + (x.bandwidth() - bw) / 2).attr('width', bw)
+      .attr('y', (p) => y(p[1])).attr('height', (p) => Math.max(0, y(p[0]) - y(p[1])));
+    svg.append('g').selectAll('rect').data(rows).join('rect')
+      .attr('x', (r) => x(r.date)).attr('width', x.bandwidth()).attr('y', m.t).attr('height', H - m.t - m.b)
+      .attr('fill', 'transparent')
+      .on('pointermove', (ev, r) => {
+        tip.replaceChildren();
+        const h = document.createElement('div'); h.className = 'hp-tip-h'; h.textContent = fdate(r.date); tip.append(h);
+        SVCS.forEach((k, i) => {
+          if (!r[k]) return;
+          const line = document.createElement('div');
+          const sw = document.createElement('i'); sw.className = 'hp-sw'; sw.style.background = window.HP.SERIES[i];
+          line.append(sw, ` ${SVC_LABEL[k]} ${f2(r[k])}`); tip.append(line);
+        });
+        tip.hidden = false;
+        const [px, py] = d3.pointer(ev, box);
+        placeTip(box, tip, px, py);
+      })
+      .on('pointerleave', () => { tip.hidden = true; });
+  });
+
+  dash.draw('hours', (box) => {
+    const d = dash.data('hourly_all');
+    box.replaceChildren();
+    if (d.status !== 'ok' || !d.data.length) return;
+    const rows = d.data;
+    const W = box.clientWidth || 600, H = 220, m = {t: 8, r: 8, b: 26, l: 36};
+    const x = d3.scaleBand(rows.map((r) => r.hour), [m.l, W - m.r]).padding(0.2);
+    const y = d3.scaleLinear([0, d3.max(rows, (r) => r.n) || 1], [H - m.b, m.t]).nice();
+    const svg = d3.select(box).append('svg').attr('width', '100%').attr('viewBox', `0 0 ${W} ${H}`).attr('role', 'img');
+    svg.append('g').attr('transform', `translate(${m.l},0)`).call(d3.axisLeft(y).ticks(4).tickSize(-(W - m.l - m.r)).tickFormat(d3.format('~s'))).call(axisStyle);
+    const every = W < 480 ? 6 : 3;
+    svg.append('g').attr('transform', `translate(0,${H - m.b})`)
+      .call(d3.axisBottom(x).tickSize(0).tickPadding(8).tickValues(rows.map((r) => r.hour).filter((h) => Number(h) % every === 0)).tickFormat((h) => `${h}:00`))
+      .call(axisStyle);
+    const tip = tipFor(box);
+    svg.append('g').attr('class', 'ap-grow').selectAll('rect').data(rows).join('rect')
+      .attr('x', (r) => x(r.hour)).attr('width', x.bandwidth())
+      .attr('y', (r) => y(r.n)).attr('height', (r) => Math.max(0, y(0) - y(r.n)))
+      .attr('rx', 3).style('fill', 'var(--ap-blue)')
+      .on('pointermove', (ev, r) => {
+        tip.replaceChildren();
+        const h = document.createElement('div'); h.className = 'hp-tip-h'; h.textContent = `${r.hour}:00–${r.hour}:59`;
+        const v = document.createElement('div'); v.textContent = `${f2(r.n)} ${L2('การเชื่อมต่อ', 'connections')}`;
+        tip.append(h, v); tip.hidden = false;
+        const [px, py] = d3.pointer(ev, box);
+        placeTip(box, tip, px, py);
+      })
+      .on('pointerleave', () => { tip.hidden = true; });
+  });
+}</script>
+
+<script>{
+  dash.calc('bot_families', {
+    title: 'Bot families',
+    description: 'One row per bot family (sessions linked by shared IPs or identical commands), most worrying first.',
+    inputs: ['bots'],
+    fn: (bots) => bots.filter((r) => r.kind === 'family')
+      .map((r) => ({family: r.family, likely: r.likely, likely_en: r.likely_en || r.likely, evidence: r.evidence, evidence_en: r.evidence_en || r.evidence, sessions: Number(r.sessions), ips: Number(r.ips),
+        creds: r.creds, tags: r.tags, last: r.last, replay: `python3 show.py replay ${r.replay}`, sev: Number(r.sev)}))
+      .sort((a, b) => b.sev - a.sev || b.sessions - a.sessions),
+  });
+  dash.calc('bot_steps', {
+    title: 'Commands step by step',
+    description: 'What each family typed, from its most complete session.',
+    inputs: ['bots'],
+    fn: (bots) => bots.filter((r) => r.kind === 'step').map((r) => ({family: r.family, order: Number(r.order), command: r.command, meaning: r.meaning, meaning_en: r.meaning_en || r.meaning})),
+  });
+  dash.calc('bot_tech', {
+    title: 'Sessions per technique',
+    description: 'How many sessions used each technique (ALL = every session, LOGIN = logged in, TR069 = requests on port 7547).',
+    inputs: ['bots'],
+    fn: (bots) => bots.filter((r) => r.kind === 'tech').map((r) => ({tag: r.tag, sessions: Number(r.sessions)})),
+  });
+  dash.calc('bot_kpis', {
+    title: 'Bot headline figures',
+    description: 'Families that typed commands, and families that kill other bots.',
+    inputs: ['bots'],
+    fn: (bots) => {
+      const fam = bots.filter((r) => r.kind === 'family' && r.family !== 'login-only');
+      return [{families: fam.length, mirai: fam.filter((r) => r.likely === 'Mirai-family').length,
+        killers: fam.filter((r) => /KILLER|PASSWD-LOCK/.test(String(r.tags))).length}];
+    },
+  });
+}</script>
+
+<script>{
+  const fmtB = d3.format(',');
+  const one = (id, field) => (el) => {
+    const d = dash.data(id);
+    const v = d.status === 'ok' && d.data[0] ? d.data[0][field] : null;
+    if (v == null) el.textContent = '—'; else window.HP.num(el, v);
+  };
+  dash.draw('b-fam', one('bot_kpis', 'families'));
+  dash.draw('b-kill', one('bot_kpis', 'killers'));
+  dash.draw('b-mirai', one('bot_kpis', 'mirai'));
+
+  dash.draw('tech', (el) => {
+    const d = dash.data('bot_tech');
+    const tag = (el.dataset.where || '').split('=')[1];
+    const r = d.status === 'ok' ? d.data.find((x) => x.tag === tag) : null;
+    el.textContent = d.status === 'ok' ? fmtB(r ? r.sessions : 0) : '—';
+  });
+
+  dash.draw('families', (tb) => {
+    const d = dash.data('bot_families');
+    const rows = d.status === 'ok' ? d.data : [];
+    tb.replaceChildren(...rows.map((r) => {
+      const tr = document.createElement('tr');
+      tr.className = `sev${r.sev}`;
+      const en = window.HP.LANG() === 'en';
+      const cells = [['family', 'code'], [en ? 'likely_en' : 'likely'], [en ? 'evidence_en' : 'evidence', 'wrap'], ['sessions', 'num'], ['ips', 'num'], ['creds', 'wrap'], ['tags', 'wrap'], ['last'], ['replay', 'code']];
+      for (const [f, kind] of cells) {
+        const td = document.createElement('td');
+        if (kind === 'num') { td.className = 'num'; td.textContent = fmtB(r[f]); }
+        else if (kind === 'code') { const c = document.createElement('code'); c.textContent = r[f]; td.append(c); }
+        else { if (kind) td.className = kind; td.textContent = r[f]; }
+        tr.append(td);
+      }
+      return tr;
+    }));
+  });
+
+  const famChoices = () => {
+    const d = dash.data('bot_families');
+    const s = dash.data('bot_steps');
+    if (d.status !== 'ok' || s.status !== 'ok') return [];
+    const has = new Set(s.data.map((r) => r.family));
+    return d.data.filter((r) => has.has(r.family)).map((r) => r.family);
+  };
+  dash.draw('fam-pick', (sel) => {
+    const fams = famChoices();
+    sel.replaceChildren(...fams.map((f) => new Option(f, f)));
+    sel.value = dash.params().fam && fams.includes(dash.params().fam) ? dash.params().fam : (fams[0] || '');
+    sel.onchange = () => dash.setParams({fam: sel.value});
+  });
+  dash.draw('steps', (tb) => {
+    const s = dash.data('bot_steps');
+    const fams = famChoices();
+    const pick = dash.params().fam && fams.includes(dash.params().fam) ? dash.params().fam : fams[0];
+    const rows = s.status === 'ok' ? s.data.filter((r) => r.family === pick).sort((a, b) => a.order - b.order) : [];
+    tb.replaceChildren(...rows.map((r) => {
+      const tr = document.createElement('tr');
+      tr.dataset.key = `${encodeURIComponent(r.family)},${r.order}`;
+      const a = document.createElement('td'); a.className = 'num'; a.textContent = r.order;
+      const b = document.createElement('td'); const c = document.createElement('code'); c.textContent = r.command; b.append(c);
+      const m = document.createElement('td'); m.className = 'wrap'; m.textContent = window.HP.LANG() === 'en' ? r.meaning_en : r.meaning;
+      tr.append(a, b, m);
+      return tr;
+    }));
+  });
+
+  const pages = () => document.querySelectorAll('[data-page]');
+  const show = (name) => {
+    pages().forEach((p) => { p.hidden = p.dataset.page !== name; });
+    document.querySelectorAll('[data-tab]').forEach((t) => t.setAttribute('aria-selected', String(t.dataset.tab === name)));
+    dash.setLink(name);
+    const pg = document.querySelector(`[data-page="${name}"]`);
+    if (pg) window.HP.reveal(pg);
+    window.scrollTo({top: 0, behavior: 'smooth'});
+  };
+  document.querySelectorAll('[data-tab]').forEach((t) => t.addEventListener('click', () => show(t.dataset.tab)));
+  if (['bots', 'map', 'system'].includes(location.hash.slice(1))) show(location.hash.slice(1));
+}</script>
+
+<script>{
+  dash.calc('geo_cc', {
+    title: 'Attack sources by country',
+    description: 'One row per country per day (plus an "all" row per country): unique source IPs, SSH/Telnet sessions, HTTP/TR-069 requests, sessions that logged in or typed commands, and the bot families seen. Country from GeoLite2, approximate.',
+    inputs: ['geo'],
+    fn: (geo) => geo.filter((r) => r.kind === 'cc').map((r) => ({
+      date: r.date, cc: r.cc, name: r.name, cont: r.cont, cont_th: r.cont_th,
+      x: r.x == null ? null : Number(r.x), y: r.y == null ? null : Number(r.y),
+      ips: Number(r.ips), sessions: Number(r.sessions), ssh: Number(r.ssh), telnet: Number(r.telnet),
+      http: Number(r.http), tr069: Number(r.tr069), logins: Number(r.logins), cmd: Number(r.cmd), families: r.families || '',
+    })),
+  });
+  dash.calc('geo_land', {
+    title: 'World dot grid',
+    description: 'Pre-projected land dots (Natural Earth projection, world-atlas 110m) and the honeypot position, for drawing the map.',
+    inputs: ['geo'],
+    fn: (geo) => geo.filter((r) => r.kind === 'land' || r.kind === 'frame'),
+  });
+  dash.calc('geo_kpis', {
+    title: 'Where attacks come from',
+    description: 'All days: number of source countries, unique IPs, the top country and the top continent by unique IPs.',
+    inputs: ['geo'],
+    fn: (geo) => {
+      const all = geo.filter((r) => r.kind === 'cc' && r.date === 'all');
+      const ips = d3.sum(all, (r) => Number(r.ips));
+      const top = all.slice().sort((a, b) => b.ips - a.ips)[0];
+      const byCont = d3.rollups(all.filter((r) => r.cont !== '??'), (v) => d3.sum(v, (r) => Number(r.ips)), (r) => r.cont).sort((a, b) => b[1] - a[1]);
+      const db = (geo.find((r) => r.kind === 'meta' && r.item === 'geo_db') || {}).value || '';
+      const m = db.match(/(GeoLite2-Country)[^-]*-.*?(\d{4})(\d{2})(\d{2})$/);
+      return [{countries: all.filter((r) => r.cc !== '??').length, ips,
+        top: top ? `${top.name} (${d3.format(',')(top.ips)} IP)` : null,
+        cont: byCont[0] ? byCont[0][0] : null,
+        share: byCont[0] && ips ? `${Math.round((byCont[0][1] / ips) * 100)}%` : null,
+        db: m ? `MaxMind ${m[1]} · ${m[4]}/${m[3]}/${m[2]}` : db}];
+    },
+  });
+}</script>
+
+<script>{
+  dash.calc('tm_events', {
+    title: 'Attack replay events',
+    description: 'Real honeypot connections bucketed per Bangkok minute, source country and attack type (ssh, telnet, malware, web, tr069), with the bot family when the session typed commands. Used to replay a day on the attack map.',
+    inputs: ['events'],
+    fn: (ev) => ev.filter((r) => r.kind === 'ev').map((r) => ({date: r.date, m: Number(r.m), cc: r.cc, t: r.t, n: Number(r.n), fam: r.fam || ''})),
+  });
+}</script>
+
+<script>{
+  (() => {
+    const TYPES = [
+      {k: 'ssh', th: 'SSH · เดารหัส/สำรวจเครื่อง', en: 'SSH · password guessing / probing', c: '#AAAAAA'},
+      {k: 'telnet', th: 'Telnet · บอทแบบ Mirai', en: 'Telnet · Mirai-style bots', c: '#FF453A'},
+      {k: 'malware', th: 'วาง malware / ยึดเครื่อง', en: 'Malware drop / takeover', c: '#007AFF'},
+      {k: 'web', th: 'สแกนเว็บ 80/8080', en: 'Web scans 80/8080', c: '#66AFFF'},
+      {k: 'tr069', th: 'TR-069 พอร์ต 7547', en: 'TR-069 port 7547', c: '#B3D7FF'},
+    ];
+    const T = Object.fromEntries(TYPES.map((t) => [t.k, t]));
+    const fmt = d3.format(',');
+    const reduce = window.matchMedia && matchMedia('(prefers-reduced-motion: reduce)').matches;
+    const L = (th, en) => window.HP.L(th, en), lbl = (t) => L(t.th, t.en);
+    const CONTN = {AS: ['เอเชีย', 'Asia'], EU: ['ยุโรป', 'Europe'], NA: ['อเมริกาเหนือ', 'North America'], SA: ['อเมริกาใต้', 'South America'], AF: ['แอฟริกา', 'Africa'], OC: ['โอเชียเนีย', 'Oceania']};
+    const hhmm = (m) => `${String(Math.floor(m / 60)).padStart(2, '0')}:${String(Math.floor(m % 60)).padStart(2, '0')}`;
+    const dmy = (s) => { const [y, mo, d] = s.split('-'); return `${Number(d)}/${Number(mo)}/${y}`; };
+    const st = {init: false, day: null, ev: [], end: 1440, idx: 0, sim: 0, speed: 8, playing: !reduce, hold: 0,
+      arcs: [], labels: new Map(), pulses: [], count: 0, byType: {}, byCc: new Map(), byFam: new Map(),
+      feedNew: [], feedAll: [], visible: true, last: 0, ui: 0, panels: 0, k: 1, W: 1200, H: 657, hx: 0, hy: 0,
+      cc: new Map(), land: [], step: 6, base: null, ctx: null, canvas: null, root: null, staticDrawn: false,
+      mode: 'replay', agg: [], flows: []};
+    const modeP = () => (dash.params().tmode === 'overview' ? 'overview' : 'replay');
+
+    const dayList = () => {
+      const d = dash.data('tm_events');
+      if (d.status !== 'ok') return [];
+      const m = d3.rollup(d.data, (v) => d3.max(v, (r) => r.m), (r) => r.date);
+      return [...m].sort((a, b) => d3.ascending(a[0], b[0])).map(([date, max]) => ({date, max}));
+    };
+    const chosen = () => {
+      const days = dayList();
+      if (!days.length) return null;
+      const p = dash.params().tday;
+      if (p === 'all' && modeP() === 'overview') return 'all';
+      if (days.some((d) => d.date === p)) return p;
+      const last = days[days.length - 1];
+      return last.max < 23 * 60 && days.length > 1 ? days[days.length - 2].date : last.date;
+    };
+
+    dash.draw('tm-day', (sel) => {
+      const days = dayList();
+      const opts = days.map((d) => new Option(d.max < 23 * 60 ? `${dmy(d.date)} (${L('ถึง', 'until')} ${hhmm(d.max)})` : dmy(d.date), d.date));
+      if (modeP() === 'overview' && days.length) opts.unshift(new Option(`${L('ทุกวัน', 'All days')} (${dmy(days[0].date)}–${dmy(days[days.length - 1].date)})`, 'all'));
+      sel.replaceChildren(...opts);
+      const c = chosen();
+      if (c) sel.value = c;
+      sel.onchange = () => dash.setParams({tday: sel.value});
+    });
+
+    const kpi = (f) => (el) => { const d = dash.data('geo_kpis'); const v = d.status === 'ok' && d.data[0] ? d.data[0][f] : null; if (v == null) el.textContent = '—'; else if (typeof v === 'number') window.HP.num(el, v); else el.textContent = v; };
+    ['countries', 'ips', 'top', 'share', 'db'].forEach((f, i) => dash.draw(['g-n', 'g-ips', 'g-top', 'g-share', 'g-db'][i], kpi(f)));
+    dash.draw('sys-cc-w', kpi('countries')); dash.draw('sys-cc-t', kpi('countries'));
+    dash.draw('g-cont', (el) => { const d = dash.data('geo_kpis'); const c = d.status === 'ok' && d.data[0] ? d.data[0].cont : null; el.textContent = c && CONTN[c] ? L(CONTN[c][0], CONTN[c][1]) : '—'; });
+
+    const q = (k) => st.root.querySelector(`[data-tm="${k}"]`);
+
+    function resize() {
+      const c = st.canvas, w = c.clientWidth || 800, dpr = Math.min(window.devicePixelRatio || 1, 2);
+      st.dpr = dpr; st.narrow = w < 640;
+      c.width = Math.round(w * dpr); c.height = Math.round(w * st.H / st.W * dpr);
+      st.k = c.width / st.W;
+      const b = document.createElement('canvas'); b.width = c.width; b.height = c.height;
+      const g = b.getContext('2d'), s = st.step * 0.58 * st.k;
+      g.fillStyle = 'rgba(170, 170, 170, 0.30)';
+      g.beginPath();
+      for (const r of st.land) for (const x of r.xs) { g.moveTo(x * st.k + s / 2, r.y * st.k); g.arc(x * st.k, r.y * st.k, s / 2, 0, Math.PI * 2); }
+      g.fill();
+      st.base = b; st.staticDrawn = false;
+    }
+
+    function resetCounters() {
+      st.count = 0; st.byType = {}; st.byCc = new Map(); st.byFam = new Map(); st.feedAll = []; st.feedNew = [];
+      st.arcs = []; st.labels = new Map(); st.pulses = [];
+    }
+    function tally(e) {
+      st.count += e.n;
+      st.byType[e.t] = (st.byType[e.t] || 0) + e.n;
+      const c = st.byCc.get(e.cc) || {n: 0, t: {}};
+      c.n += e.n; c.t[e.t] = (c.t[e.t] || 0) + e.n; st.byCc.set(e.cc, c);
+      if (e.fam) st.byFam.set(e.fam, (st.byFam.get(e.fam) || 0) + e.n);
+    }
+    function setDay(day) {
+      const d = dash.data('tm_events');
+      st.day = day;
+      st.ev = d.data.filter((r) => day === 'all' || r.date === day).sort((a, b) => d3.ascending(a.date, b.date) || a.m - b.m);
+      const max = d3.max(st.ev, (r) => r.m) || 0;
+      st.end = day === 'all' || max >= 23 * 60 ? 1440 : max + 1;
+      if (st.mode === 'overview') overview(); else seek(0);
+    }
+    function seek(m) {
+      resetCounters();
+      st.sim = m; st.idx = 0; st.hold = 0;
+      while (st.idx < st.ev.length && st.ev[st.idx].m < m) { tally(st.ev[st.idx]); st.feedAll.push(st.ev[st.idx]); st.idx++; }
+      st.feedAll = st.feedAll.slice(-8);
+      st.feedNew = st.feedAll.slice();
+      st.root.querySelector('[data-tm="feed"]').replaceChildren();
+      st.staticDrawn = false;
+      ui(true);
+    }
+    function overview() {
+      resetCounters();
+      const fam = new Map();
+      for (const e of st.ev) {
+        tally(e);
+        if (e.fam) { const f = fam.get(e.cc) || new Map(); f.set(e.fam, (f.get(e.fam) || 0) + e.n); fam.set(e.cc, f); }
+      }
+      st.feedAll = st.ev.slice(-8); st.feedNew = st.feedAll.slice();
+      st.root.querySelector('[data-tm="feed"]').replaceChildren();
+      st.agg = [...st.byCc].filter(([cc]) => st.cc.has(cc)).map(([cc, v]) => {
+        const s = st.cc.get(cc), top = Object.entries(v.t).sort((a, b) => b[1] - a[1])[0][0];
+        const fams = [...(fam.get(cc) || new Map())].sort((a, b) => b[1] - a[1]).slice(0, 3).map((x) => x[0]);
+        return {cc, x: s.x, y: s.y, name: s.name, n: v.n, t: v.t, top, fams};
+      }).sort((a, b) => b.n - a.n);
+      const max = st.agg[0] ? st.agg[0].n : 1;
+      st.rad = (n) => 2 + 14 * Math.sqrt(n / max);
+      st.wid = (n) => 0.6 + 2.6 * Math.sqrt(n / max);
+      st.flows = st.agg.filter((a) => a.cc !== 'SG').slice(0, 25).map((a, i) => ({...a, sx: a.x, sy: a.y,
+        d: 1600 + Math.hypot(st.hx - a.x, st.hy - a.y) * 2.2, off: (i * 0.37) % 1, lap: -1}));
+      st.sim = st.end; st.playing = false;
+      ui(true); panels();
+    }
+    function drawOverview(g, now) {
+      const k = st.k;
+      for (const a of st.flows) {
+        const c = ctrl(a), col = T[a.top].c;
+        g.strokeStyle = col; g.globalAlpha = 0.28; g.lineWidth = st.wid(a.n) * k;
+        g.beginPath(); g.moveTo(a.x * k, a.y * k); g.quadraticCurveTo(c[0] * k, c[1] * k, st.hx * k, st.hy * k); g.stroke();
+        if (reduce) continue;
+        const ph = (now / a.d + a.off) % 1, lap = Math.floor(now / a.d + a.off);
+        if (a.lap !== -1 && lap !== a.lap) st.pulses.push({b: now, c: col});
+        a.lap = lap;
+        const t1 = ph, t0 = Math.max(0, ph - 0.22), N = 12; let prev = bez(a, c, t0);
+        g.lineWidth = (st.wid(a.n) + 1) * k; g.lineCap = 'round';
+        for (let i = 1; i <= N; i++) { const pt = bez(a, c, t0 + (t1 - t0) * i / N); g.globalAlpha = (i / N) * 0.95;
+          g.beginPath(); g.moveTo(prev[0] * k, prev[1] * k); g.lineTo(pt[0] * k, pt[1] * k); g.stroke(); prev = pt; }
+        g.globalAlpha = 1; g.shadowColor = col; g.shadowBlur = 12 * k; g.fillStyle = '#fff';
+        g.beginPath(); g.arc(prev[0] * k, prev[1] * k, 1.8 * k, 0, Math.PI * 2); g.fill(); g.shadowBlur = 0;
+      }
+      for (const a of st.agg) {
+        const col = T[a.top].c, r = st.rad(a.n) * k;
+        g.globalAlpha = a.cc === st.hot ? 0.5 : 0.22; g.fillStyle = col; g.beginPath(); g.arc(a.x * k, a.y * k, r, 0, Math.PI * 2); g.fill();
+        g.globalAlpha = 0.9; g.strokeStyle = col; g.lineWidth = (a.cc === st.hot ? 2 : 1) * k; g.stroke();
+        g.globalAlpha = 1; g.fillStyle = '#fff'; g.beginPath(); g.arc(a.x * k, a.y * k, 1.5 * k, 0, Math.PI * 2); g.fill();
+      }
+      const fs = Math.max(10.5 * st.dpr, 11.5 * k), lab = [];
+      g.font = `500 ${fs}px -apple-system, "SF Pro Text", "Noto Sans Thai", system-ui, sans-serif`; g.textBaseline = 'middle';
+      for (const a of st.agg) {
+        if (lab.length >= (st.narrow ? 4 : 7)) break;
+        if (lab.some((o) => Math.abs(o.x - a.x) < 130 && Math.abs(o.y - a.y) < 24)) continue;
+        lab.push(a);
+        const right = a.x < st.W - 160, x = (a.x + (right ? 1 : -1) * (st.rad(a.n) + 4)) * k;
+        g.textAlign = right ? 'left' : 'right'; g.fillStyle = '#F5F5F7'; g.shadowColor = 'rgba(0,0,0,.85)'; g.shadowBlur = 4;
+        g.fillText(`${a.name} ${fmt(a.n)}`, x, a.y * k); g.shadowBlur = 0;
+      }
+      g.textAlign = 'left';
+    }
+    function tip(ev) {
+      const box = st.canvas.getBoundingClientRect(), tipEl = q('tip');
+      if (st.mode !== 'overview') { tipEl.hidden = true; st.hot = null; return; }
+      const x = (ev.clientX - box.left) / box.width * st.W, y = (ev.clientY - box.top) / box.height * st.H;
+      let best = null, bd = Infinity;
+      for (const a of st.agg) { const d = Math.hypot(a.x - x, a.y - y); if (d < Math.max(10, st.rad(a.n) + 3) && d < bd) { bd = d; best = a; } }
+      st.hot = best ? best.cc : null;
+      if (!best) { tipEl.hidden = true; return; }
+      const h = document.createElement('h5'); h.textContent = `${best.name} → SG · ${fmt(best.n)} ${L('ครั้ง', 'attacks')}`;
+      const dl = document.createElement('dl');
+      for (const t of TYPES) if (best.t[t.k]) { const dt = document.createElement('dt'); const sw = document.createElement('span'); sw.className = 'tm-sw'; sw.style.background = t.c; sw.style.color = t.c; dt.append(sw, lbl(t));
+        const dd = document.createElement('dd'); dd.textContent = fmt(best.t[t.k]); dl.append(dt, dd); }
+      tipEl.replaceChildren(h, dl);
+      if (best.fams.length) { const pp = document.createElement('p'); pp.textContent = `${L('กลุ่มบอท', 'Bot families')}: ${best.fams.join(', ')}`; tipEl.append(pp); }
+      tipEl.hidden = false;
+      const sb = st.canvas.parentElement.getBoundingClientRect(), px = ev.clientX - sb.left, py = ev.clientY - sb.top;
+      tipEl.style.left = `${Math.max(4, Math.min(sb.width - tipEl.offsetWidth - 4, px + 14))}px`;
+      tipEl.style.top = `${py - tipEl.offsetHeight - 12 < 0 ? py + 14 : py - tipEl.offsetHeight - 12}px`;
+    }
+    function spawn(e, now) {
+      tally(e);
+      st.feedAll.push(e); if (st.feedAll.length > 8) st.feedAll.shift();
+      st.feedNew.push(e);
+      const s = st.cc.get(e.cc);
+      const col = (T[e.t] || T.ssh).c;
+      if (!s || e.cc === 'SG') { st.pulses.push({b: now, c: col}); return; }
+      st.arcs.push({sx: s.x, sy: s.y, c: col, n: e.n, b: now, d: 900 + Math.hypot(st.hx - s.x, st.hy - s.y) * 1.3, hit: false});
+      if (st.arcs.length > 90) st.arcs.shift();
+      st.labels.set(e.cc, {x: s.x, y: s.y, name: s.name, b: now, c: col, n: (st.labels.get(e.cc)?.b > now - 1500 ? st.labels.get(e.cc).n : 0) + e.n});
+    }
+    const ctrl = (a) => {
+      const mx = (a.sx + st.hx) / 2, my = (a.sy + st.hy) / 2, dist = Math.hypot(st.hx - a.sx, st.hy - a.sy);
+      return [mx, my - Math.min(220, dist * 0.38)];
+    };
+    const bez = (a, c, t) => [(1 - t) * (1 - t) * a.sx + 2 * (1 - t) * t * c[0] + t * t * st.hx, (1 - t) * (1 - t) * a.sy + 2 * (1 - t) * t * c[1] + t * t * st.hy];
+
+    function drawArc(g, a, now) {
+      const k = st.k, c = ctrl(a), age = now - a.b, p = age / a.d;
+      const w = (1.1 + Math.log2(a.n + 1) * 0.7) * k;
+      let t1 = Math.min(1, p), t0 = Math.max(0, p - 0.32), fade = 1;
+      if (p >= 1) { const qq = (age - a.d) / 650; if (qq >= 1) return false; fade = 1 - qq; t0 = Math.min(1, 0.68 + qq * 0.32); t1 = 1;
+        if (!a.hit) { a.hit = true; st.pulses.push({b: now, c: a.c}); } }
+      const N = 14;
+      g.lineCap = 'round'; g.strokeStyle = a.c; g.lineWidth = w;
+      let prev = bez(a, c, t0);
+      for (let i = 1; i <= N; i++) {
+        const t = t0 + (t1 - t0) * i / N, pt = bez(a, c, t);
+        g.globalAlpha = fade * (i / N) * 0.95;
+        g.beginPath(); g.moveTo(prev[0] * k, prev[1] * k); g.lineTo(pt[0] * k, pt[1] * k); g.stroke();
+        prev = pt;
+      }
+      if (p < 1) {
+        g.globalAlpha = 1; g.shadowColor = a.c; g.shadowBlur = 14 * k; g.fillStyle = '#fff';
+        g.beginPath(); g.arc(prev[0] * k, prev[1] * k, (1.6 + w / k * 0.5) * k, 0, Math.PI * 2); g.fill(); g.shadowBlur = 0;
+      }
+      if (age < 700) {
+        const r = (2 + age / 700 * 12) * k; g.globalAlpha = 1 - age / 700; g.lineWidth = 1.2 * k;
+        g.beginPath(); g.arc(a.sx * k, a.sy * k, r, 0, Math.PI * 2); g.stroke();
+      }
+      g.globalAlpha = 1;
+      return true;
+    }
+    function drawLabels(g, now) {
+      const k = st.k, fs = Math.max(10.5 * st.dpr, 11.5 * k);
+      g.font = `500 ${fs}px -apple-system, "SF Pro Text", "Noto Sans Thai", system-ui, sans-serif`; g.textBaseline = 'middle';
+      const L = [...st.labels.entries()].sort((a, b) => b[1].b - a[1].b);
+      const lim = st.narrow ? 4 : 8;
+      L.slice(lim).forEach(([cc]) => st.labels.delete(cc));
+      for (const [cc, l] of L.slice(0, lim)) {
+        const age = now - l.b;
+        if (age > 2400) { st.labels.delete(cc); continue; }
+        const a = age < 250 ? age / 250 : age > 1900 ? (2400 - age) / 500 : 1;
+        const txt = l.n > 1 ? `${l.name} ×${fmt(l.n)}` : l.name;
+        g.globalAlpha = a; g.fillStyle = l.c;
+        g.beginPath(); g.arc(l.x * k, l.y * k, 2.4 * k, 0, Math.PI * 2); g.fill();
+        g.fillStyle = '#F5F5F7'; g.shadowColor = 'rgba(0,0,0,.8)'; g.shadowBlur = 4;
+        const right = l.x < st.W - 160;
+        g.textAlign = right ? 'left' : 'right';
+        g.fillText(txt, (l.x + (right ? 6 : -6)) * k, (l.y - 9) * k);
+        g.shadowBlur = 0;
+      }
+      g.globalAlpha = 1; g.textAlign = 'left';
+    }
+    function drawTarget(g, now) {
+      const k = st.k;
+      st.pulses = st.pulses.filter((p) => now - p.b < 1000).slice(-24);
+      for (const p of st.pulses) {
+        const t = (now - p.b) / 1000; g.globalAlpha = (1 - t) * 0.9; g.strokeStyle = p.c; g.lineWidth = 1.4 * k;
+        g.beginPath(); g.arc(st.hx * k, st.hy * k, (4 + t * 26) * k, 0, Math.PI * 2); g.stroke();
+      }
+      g.globalAlpha = 1; g.shadowColor = '#007AFF'; g.shadowBlur = 20 * k; g.fillStyle = '#007AFF';
+      g.beginPath(); g.arc(st.hx * k, st.hy * k, 4.5 * k, 0, Math.PI * 2); g.fill(); g.shadowBlur = 0;
+      g.fillStyle = '#F5F5F7'; g.font = `600 ${Math.max(10 * st.dpr, 11 * k)}px -apple-system, "SF Pro Text", system-ui, sans-serif`; g.textAlign = 'left'; g.textBaseline = 'middle';
+      g.fillText('HONEYPOT · SG', (st.hx + 10) * k, (st.hy + 16) * k);
+    }
+    function drawStatic(g) {
+      const agg = new Map();
+      for (const e of st.ev) { if (e.m >= st.sim) break; const a = agg.get(e.cc) || {n: 0, t: {}}; a.n += e.n; a.t[e.t] = (a.t[e.t] || 0) + e.n; agg.set(e.cc, a); }
+      const top = [...agg].filter(([cc]) => st.cc.has(cc) && cc !== 'SG').sort((a, b) => b[1].n - a[1].n).slice(0, 25);
+      const max = top[0] ? top[0][1].n : 1, k = st.k;
+      for (const [cc, a] of top) {
+        const s = st.cc.get(cc), t = Object.entries(a.t).sort((x, y) => y[1] - x[1])[0][0], arc = {sx: s.x, sy: s.y}, c = ctrl(arc);
+        g.strokeStyle = T[t].c; g.globalAlpha = 0.75; g.lineWidth = (0.8 + 3 * Math.sqrt(a.n / max)) * k;
+        g.beginPath(); g.moveTo(s.x * k, s.y * k); g.quadraticCurveTo(c[0] * k, c[1] * k, st.hx * k, st.hy * k); g.stroke();
+        g.fillStyle = T[t].c; g.beginPath(); g.arc(s.x * k, s.y * k, (2 + 6 * Math.sqrt(a.n / max)) * k, 0, Math.PI * 2); g.fill();
+      }
+      g.globalAlpha = 1;
+    }
+
+    function ui(force) {
+      const ov = st.mode === 'overview', days = dayList();
+      q('count').textContent = fmt(st.count);
+      q('countunit').textContent = L('ครั้ง', 'attacks');
+      q('countlabel').textContent = !ov ? L(`ในวันที่ ${dmy(st.day)} ถึง ${hhmm(Math.min(st.sim, st.end))} น.`, `on ${dmy(st.day)} up to ${hhmm(Math.min(st.sim, st.end))}`)
+        : st.day === 'all' ? L(`รวม ${days.length} วัน (${dmy(days[0].date)}–${dmy(days[days.length - 1].date)} ${hhmm(days[days.length - 1].max)} น.)`, `over ${days.length} days (${dmy(days[0].date)}–${dmy(days[days.length - 1].date)} ${hhmm(days[days.length - 1].max)})`)
+        : st.end < 1440 ? L(`รวมวันที่ ${dmy(st.day)} ถึง ${hhmm(st.end - 1)} น.`, `on ${dmy(st.day)} up to ${hhmm(st.end - 1)}`) : L(`รวมทั้งวัน ${dmy(st.day)}`, `in the whole day ${dmy(st.day)}`);
+      q('clock').textContent = !ov ? hhmm(Math.min(st.sim, st.end - 0.01)) : st.day === 'all' ? L('ทุกวัน', 'All days') : L('ทั้งวัน', 'Whole day');
+      q('date').textContent = !ov ? `${dmy(st.day)} · ${L('เวลาไทย', 'Bangkok time')}` : st.day === 'all' ? L(`${days.length} วันที่เก็บข้อมูล`, `${days.length} days of data`) : `${dmy(st.day)} · 00:00–${hhmm(Math.min(st.end, 1439))}`;
+      q('prog').style.width = `${ov ? 100 : Math.min(100, st.sim / st.end * 100)}%`;
+      q('scope').textContent = q('scope2').textContent = ov ? (st.day === 'all' ? L('(ทุกวัน)', '(all days)') : L('(ทั้งวัน)', '(whole day)')) : L('(ถึงเวลาที่เล่น)', '(up to the replay time)');
+      q('speed').hidden = ov; q('play').hidden = ov; q('scrub').style.visibility = ov ? 'hidden' : '';
+      q('brand').textContent = ov ? 'OVERVIEW' : 'REPLAY';
+      const play = q('play'); play.textContent = st.playing ? '❚❚' : '▶'; play.setAttribute('aria-pressed', String(st.playing));
+      const lg = q('legend');
+      if (!lg.childElementCount) lg.replaceChildren(...TYPES.map((t) => { const li = document.createElement('li'); li.dataset.k = t.k;
+        const sw = document.createElement('span'); sw.className = 'tm-sw'; sw.style.background = t.c; sw.style.color = t.c;
+        const nm = document.createElement('span'); nm.textContent = lbl(t); const b = document.createElement('b'); li.append(sw, nm, b); return li; }));
+      for (const li of lg.children) li.querySelector('b').textContent = fmt(st.byType[li.dataset.k] || 0);
+      // feed: prepend only what is new
+      const feed = q('feed');
+      for (const e of st.feedNew.slice(-8)) {
+        const li = document.createElement('li');
+        const tm = document.createElement('time'); tm.textContent = hhmm(e.m);
+        const sw = document.createElement('span'); sw.className = 'tm-sw'; sw.style.background = (T[e.t] || T.ssh).c; sw.style.color = (T[e.t] || T.ssh).c;
+        const w = document.createElement('span'); w.className = 'w';
+        const nm = st.cc.get(e.cc)?.name || (e.cc === '??' ? L('ไม่ทราบประเทศ', 'Unknown country') : e.cc);
+        w.textContent = `${nm} → SG `;
+        const sm = document.createElement('small'); sm.textContent = lbl(T[e.t] || T.ssh) + (e.fam ? ` · ${e.fam}` : ''); w.append(sm);
+        const n = document.createElement('span'); n.className = 'n'; n.textContent = e.n > 1 ? `×${fmt(e.n)}` : '';
+        li.append(tm, sw, w, n); feed.prepend(li);
+      }
+      st.feedNew = [];
+      while (feed.childElementCount > 8) feed.lastElementChild.remove();
+    }
+    function panels() {
+      const rank = (el, entries, label, bar) => {
+        const max = entries[0] ? entries[0][1].n ?? entries[0][1] : 1;
+        el.replaceChildren(...(entries.length ? entries.map(([k, v]) => {
+          const li = document.createElement('li'); const nm = document.createElement('span'); nm.className = 'nm'; nm.textContent = label(k);
+          const n = typeof v === 'number' ? v : v.n; const val = document.createElement('span'); val.className = 'v'; val.textContent = fmt(n);
+          const b = document.createElement('span'); b.className = 'bar'; bar(b, k, v, n / max); li.append(nm, val, b); return li;
+        }) : []));
+      };
+      rank(q('countries'), [...st.byCc].sort((a, b) => b[1].n - a[1].n).slice(0, 8),
+        (cc) => st.cc.get(cc)?.name || (cc === '??' ? L('ไม่ทราบประเทศ', 'Unknown country') : cc),
+        (b, k, v, f) => { for (const t of TYPES) if (v.t[t.k]) { const i = document.createElement('i'); i.style.width = `${(v.t[t.k] / v.n) * f * 100}%`; i.style.background = t.c; b.append(i); } });
+      rank(q('families'), [...st.byFam].sort((a, b) => b[1] - a[1]).slice(0, 8), (f) => f,
+        (b, k, v, f) => { const i = document.createElement('i'); i.style.width = `${f * 100}%`; i.style.background = '#007AFF'; b.append(i); });
+    }
+
+    function frame(now) {
+      requestAnimationFrame(frame);
+      const dt = Math.min(0.1, (now - (st.last || now)) / 1000); st.last = now;
+      if (!st.visible || document.hidden || !st.day) return;
+      if (st.mode === 'overview') {
+        const g = st.ctx; g.clearRect(0, 0, st.canvas.width, st.canvas.height); g.drawImage(st.base, 0, 0);
+        drawOverview(g, now); drawTarget(g, now);
+        if (now - st.ui > 200) { st.ui = now; ui(); }
+        return;
+      }
+      if (st.playing) {
+        if (st.sim < st.end) {
+          st.sim = Math.min(st.end, st.sim + dt * st.speed);
+          while (st.idx < st.ev.length && st.ev[st.idx].m < st.sim) spawn(st.ev[st.idx++], now);
+        } else if ((st.hold += dt) > 3) seek(0);
+      }
+      const g = st.ctx; g.clearRect(0, 0, st.canvas.width, st.canvas.height); g.drawImage(st.base, 0, 0);
+      if (!st.playing && !st.arcs.length && st.sim > 0) drawStatic(g);
+      st.arcs = st.arcs.filter((a) => drawArc(g, a, now));
+      drawLabels(g, now);
+      drawTarget(g, now);
+      if (now - st.ui > 200) { st.ui = now; ui(); }
+      if (now - st.panels > 600) { st.panels = now; panels(); }
+    }
+
+    function init(stage) {
+      st.root = stage.closest('.tm'); st.canvas = stage.querySelector('canvas'); st.ctx = st.canvas.getContext('2d');
+      const land = dash.data('geo_land').data, fr = land.find((r) => r.kind === 'frame');
+      st.W = Number(fr.W); st.H = Number(fr.H); st.hx = Number(fr.hx); st.hy = Number(fr.hy); st.step = Number(fr.step) || 6;
+      st.canvas.style.aspectRatio = `${st.W} / ${st.H}`;
+      st.land = land.filter((r) => r.kind === 'land').map((r) => ({y: Number(r.y), xs: String(r.xs).split(' ').map(Number)}));
+      for (const r of dash.data('geo_cc').data) if (r.date === 'all' && r.x != null) st.cc.set(r.cc, {x: r.x, y: r.y, name: r.name});
+      resize();
+      new ResizeObserver(() => resize()).observe(st.canvas);
+      if ('IntersectionObserver' in window) new IntersectionObserver((es) => { st.visible = es.some((e) => e.isIntersecting); }).observe(stage);
+      q('speed').onchange = (e) => { st.speed = Number(e.target.value); };
+      q('mode').onchange = (e) => dash.setParams({tmode: e.target.value});
+      st.canvas.addEventListener('pointermove', tip);
+      st.canvas.addEventListener('pointerleave', () => { q('tip').hidden = true; st.hot = null; });
+      q('play').onclick = () => { st.playing = !st.playing; if (st.playing && st.sim >= st.end) seek(0); ui(); };
+      const bar = q('scrub');
+      bar.tabIndex = 0;
+      bar.onclick = (e) => { if (st.mode === 'overview') return; const r = bar.getBoundingClientRect(); seek(Math.max(0, Math.min(1, (e.clientX - r.left) / r.width)) * st.end); };
+      bar.onkeydown = (e) => { if (e.key === 'ArrowRight' || e.key === 'ArrowLeft') { seek(Math.max(0, Math.min(st.end, st.sim + (e.key === 'ArrowRight' ? 60 : -60)))); e.preventDefault(); } };
+      st.init = true;
+      requestAnimationFrame(frame);
+    }
+
+    dash.draw('tm-stage', (stage) => {
+      const ok = ['tm_events', 'geo_cc', 'geo_land'].every((id) => dash.data(id).status === 'ok');
+      if (!ok) return;
+      if (!st.init) init(stage);
+      const mode = modeP(), day = chosen();
+      q('mode').value = mode;
+      const lang = window.HP.LANG();
+      if (st.lang && st.lang !== lang) { q('legend').replaceChildren(); q('feed').replaceChildren(); st.feedNew = st.feedAll.slice(); ui(); panels(); }
+      st.lang = lang;
+      if (day && (day !== st.day || mode !== st.mode)) {
+        const was = st.mode; st.mode = mode;
+        if (mode === 'replay' && was === 'overview') st.playing = !reduce;
+        q('tip').hidden = true; st.hot = null;
+        setDay(day);
+        if (mode === 'replay' && reduce) { st.playing = false; seek(st.end); }
+      }
+    });
+  })();
+}</script>
+
+
+</body></html>
