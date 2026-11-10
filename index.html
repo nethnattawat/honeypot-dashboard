@@ -409,7 +409,7 @@ body{margin:0;padding:16px;background:var(--color-bg);color:var(--color-fg);font
   }
 
   .wk-replay { display: grid; gap: .9rem; }
-  .wk-picks { display: grid; gap: .5rem; grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .wk-picks { display: grid; gap: .5rem; grid-template-columns: repeat(4, minmax(0, 1fr)); }
   .wk-picks button { font: inherit; font-size: .8125rem; line-height: 1.35; border: 0; border-radius: 14px; padding: .65rem .9rem; background: var(--ap-fill); color: var(--ap-fg); cursor: pointer; text-align: center; transition: background-color .25s, color .25s; }
   .wk-picks button[aria-pressed="true"] { background: var(--ap-fg); color: var(--ap-bg); }
   .wk-term { border-radius: 16px; background: #0b0b0d; color: #e8e8ed; overflow: hidden; box-shadow: inset 0 0 0 1px rgba(255,255,255,.06); }
@@ -461,7 +461,7 @@ body{margin:0;padding:16px;background:var(--color-bg);color:var(--color-fg);font
     .wk-tog { display: flex; flex-wrap: wrap; justify-content: center; }
     .wk-tog button { flex: 0 1 calc(50% - .3rem); min-height: 5.5rem; }
     .wk-out { grid-template-columns: 1fr; }
-    .wk-picks { grid-template-columns: 1fr; }
+    .wk-picks { grid-template-columns: repeat(2, minmax(0, 1fr)); }
     .wk-term-h { grid-template-columns: auto 1fr; } .wk-term-h .info { text-align: right; } .wk-clock { grid-column: 1 / -1; text-align: center; }
   }
   @media (prefers-reduced-motion: reduce) {
@@ -818,7 +818,7 @@ body{margin:0;padding:16px;background:var(--color-bg);color:var(--color-fg);font
   function wkPaint() {
     const u = WK.ui, r = wkCur(); if (!u || !r) return;
     const reps = wkReps();
-    u.picks.replaceChildren(...reps.map((x, i) => { const b = wkMk('button', '', wkL(x.title, x.title_en)); b.type = 'button'; b.setAttribute('aria-pressed', String(i === WK.pick)); b.addEventListener('click', () => { WK.pick = i; wkReset(); wkPaint(); wkPlay(); }); return b; }));
+    u.picks.replaceChildren(...reps.map((x, i) => { const b = wkMk('button', '', wkL(x.title, x.title_en)); b.type = 'button'; if (x.desc) b.title = wkL(x.desc, x.desc_en); b.setAttribute('aria-pressed', String(i === WK.pick)); b.addEventListener('click', () => { WK.pick = i; wkReset(); wkPaint(); wkPlay(); }); return b; }));
     u.head.replaceChildren();
     const dots = wkMk('span', 'wk-dots'); dots.append(wkMk('i'), wkMk('i'), wkMk('i'));
     const info = wkMk('span', 'info'); info.append(document.createTextNode(`${r.proto.toUpperCase()} · login `), wkMk('code', '', `${r.user || '(blank)'} / ${r.pw || '(blank)'}`));
