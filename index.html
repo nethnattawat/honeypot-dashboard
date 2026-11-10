@@ -367,57 +367,77 @@ body{margin:0;padding:16px;background:var(--color-bg);color:var(--color-fg);font
 
 
   /* walkthrough tab */
-  .wk-card { gap: .9rem; }
-  .wk-funnel { display: grid; gap: .35rem; justify-items: center; padding: .5rem 0; }
+  #walk .hp-card { gap: 1.1rem; justify-items: stretch; }
+  #walk .hp-card > h2, #walk .hp-card > .hp-note { text-align: center; justify-self: center; max-width: 46rem; }
+  .wk-funnel { display: grid; gap: .35rem; justify-items: center; padding: .25rem 0; }
+  .wk-funnel > .hp-note { text-align: center; margin-top: .5rem; }
   .wk-stage { width: 100%; display: grid; justify-items: center; gap: .3rem; }
   .wk-bar { display: grid; place-items: center; min-height: 4.25rem; border-radius: 16px; background: var(--ap-fill); padding: .55rem 1rem; text-align: center; transition: width 1s var(--ap-ease); min-width: min(100%, 15rem); }
   .wk-stage.is-hot .wk-bar { background: var(--ap-blue); color: #fff; }
   .wk-bar .n { font-size: clamp(1.5rem, 3vw, 2.1rem); font-weight: 600; line-height: 1.1; letter-spacing: -.02em; font-variant-numeric: tabular-nums; }
   .wk-bar .t { font-size: .8125rem; line-height: 1.35; opacity: .85; }
-  .wk-drop { font-size: .75rem; color: var(--ap-fg2); display: flex; align-items: center; gap: .4rem; }
-  .wk-drop::before { content: ""; width: 1px; height: .9rem; background: var(--ap-line); }
+  .wk-drop { font-size: .75rem; color: var(--ap-fg2); display: grid; justify-items: center; gap: .1rem; }
+  .wk-drop::before { content: ""; width: 1px; height: .7rem; background: var(--ap-line); }
   .wk-subs { display: flex; flex-wrap: wrap; justify-content: center; gap: .5rem; margin-top: .35rem; }
   .wk-subs span { padding: .3rem .75rem; border-radius: 999px; background: color-mix(in srgb, var(--ap-blue) 12%, var(--ap-card)); font-size: .8125rem; }
   .wk-subs b { font-variant-numeric: tabular-nums; margin-right: .3rem; }
-  .wk-picks { display: flex; flex-wrap: wrap; gap: .45rem; }
-  .wk-picks button { font: inherit; font-size: .8125rem; border: 0; border-radius: 999px; padding: .45rem .9rem; background: var(--ap-fill); color: var(--ap-fg); cursor: pointer; }
+
+  .wk-replay { display: grid; gap: .9rem; }
+  .wk-picks { display: grid; gap: .5rem; grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .wk-picks button { font: inherit; font-size: .8125rem; line-height: 1.35; border: 0; border-radius: 14px; padding: .65rem .9rem; background: var(--ap-fill); color: var(--ap-fg); cursor: pointer; text-align: center; transition: background-color .25s, color .25s; }
   .wk-picks button[aria-pressed="true"] { background: var(--ap-fg); color: var(--ap-bg); }
   .wk-term { border-radius: 16px; background: #0b0b0d; color: #e8e8ed; overflow: hidden; box-shadow: inset 0 0 0 1px rgba(255,255,255,.06); }
-  .wk-term-h { display: flex; flex-wrap: wrap; align-items: center; gap: .5rem 1rem; padding: .65rem 1rem; background: #1c1c1f; font-size: .75rem; color: #a1a1a6; }
+  .wk-term-h { display: grid; grid-template-columns: auto 1fr auto; align-items: center; gap: 1rem; padding: .65rem 1rem; background: #1c1c1f; font-size: .75rem; color: #a1a1a6; }
+  .wk-term-h .info { text-align: center; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
   .wk-dots { display: inline-flex; gap: .35rem; } .wk-dots i { width: .65rem; height: .65rem; border-radius: 50%; background: #3a3a3e; }
   .wk-dots i:nth-child(1) { background: #ff5f57; } .wk-dots i:nth-child(2) { background: #febc2e; } .wk-dots i:nth-child(3) { background: #28c840; }
   .wk-term-h code { color: #e8e8ed; }
-  .wk-clock { margin-left: auto; font-variant-numeric: tabular-nums; color: #e8e8ed; font-weight: 600; }
-  .wk-screen { font: .78rem/1.55 ui-monospace, SFMono-Regular, Menlo, Consolas, monospace; padding: .9rem 1rem 1.1rem; height: 21rem; overflow: auto; scroll-behavior: smooth; }
-  .wk-line { display: grid; grid-template-columns: 3.4rem minmax(0, 1fr); gap: .5rem; }
+  .wk-clock { font-variant-numeric: tabular-nums; color: #e8e8ed; font-weight: 600; min-width: 6.5rem; text-align: right; }
+  .wk-screen { font: .78rem/1.6 ui-monospace, SFMono-Regular, Menlo, Consolas, monospace; padding: .9rem 1rem 1.1rem; height: 20rem; overflow: auto; }
+  .wk-prog { height: 3px; background: #1c1c1f; } .wk-prog i { display: block; height: 100%; width: 0; background: #32d74b; transition: width .3s; }
+  .wk-line { display: grid; grid-template-columns: 3.4rem minmax(0, 1fr); gap: .6rem; }
   .wk-line .ts { color: #6e6e73; text-align: right; font-variant-numeric: tabular-nums; }
   .wk-line .cmd { white-space: pre-wrap; overflow-wrap: anywhere; } .wk-line .cmd::before { content: "# "; color: #32d74b; }
-  .wk-line.sys .cmd { color: #a1a1a6; } .wk-line.sys .cmd::before { content: ""; }
-  .wk-cursor { display: inline-block; width: .55em; height: 1em; background: #e8e8ed; vertical-align: text-bottom; animation: wk-blink 1s steps(1) infinite; }
+  .wk-line.sys .cmd { color: #a1a1a6; } .wk-line.sys .cmd::before { content: "> "; color: #6e6e73; }
+  .wk-cursor { display: inline-block; width: .55em; height: 1em; margin-left: 1px; background: #e8e8ed; vertical-align: text-bottom; animation: wk-blink 1s steps(1) infinite; }
   @keyframes wk-blink { 50% { opacity: 0; } }
-  .wk-now { display: flex; align-items: center; gap: .75rem; padding: .75rem 1rem; border-radius: 14px; background: var(--ap-fill); font-size: .9375rem; min-height: 3.2rem; }
-  .wk-now .lbl { font-size: .75rem; font-weight: 600; color: var(--ap-fg2); white-space: nowrap; }
-  .wk-now b { font-weight: 600; }
-  .wk-ctrl { display: flex; flex-wrap: wrap; align-items: center; gap: .5rem; }
-  .wk-ctrl button { font: inherit; font-size: .8125rem; font-weight: 600; border: 0; border-radius: 999px; padding: .5rem 1.1rem; background: var(--ap-blue); color: #fff; cursor: pointer; }
-  .wk-ctrl button.sec { background: var(--ap-fill); color: var(--ap-fg); font-weight: 500; }
-  .wk-ctrl .meta { font-size: .8125rem; color: var(--ap-fg2); margin-left: auto; }
-  .wk-tog { display: grid; gap: .5rem; grid-template-columns: repeat(auto-fit, minmax(min(100%, 8rem), 1fr)); }
-  .wk-tog button { font: inherit; text-align: center; display: grid; gap: .2rem; justify-items: center; padding: .9rem .75rem; border-radius: 16px; border: 0; cursor: pointer; background: color-mix(in srgb, #FF3B30 12%, var(--ap-card)); color: var(--ap-fg); box-shadow: inset 0 0 0 1.5px color-mix(in srgb, #FF3B30 45%, transparent); transition: background-color .3s, box-shadow .3s; }
-  .wk-tog button[aria-pressed="false"] { background: var(--ap-fill); box-shadow: none; color: var(--ap-fg2); }
+  .wk-now { display: grid; justify-items: center; gap: .2rem; text-align: center; padding: .85rem 1rem; border-radius: 14px; background: var(--ap-fill); min-height: 4rem; align-content: center; }
+  .wk-now .lbl { font-size: .75rem; font-weight: 600; color: var(--ap-fg2); }
+  .wk-now b { font-size: 1rem; font-weight: 600; line-height: 1.4; }
+  .wk-ctrl { display: flex; flex-wrap: wrap; justify-content: center; align-items: center; gap: .5rem; }
+  .wk-ctrl > button { font: inherit; font-size: .875rem; font-weight: 600; border: 0; border-radius: 999px; padding: .55rem 1.25rem; cursor: pointer; min-width: 7.5rem; }
+  .wk-ctrl > button.pri { background: var(--ap-blue); color: #fff; }
+  .wk-ctrl > button.sec { background: var(--ap-fill); color: var(--ap-fg); }
+  .wk-seg { display: inline-flex; padding: 3px; border-radius: 999px; background: var(--ap-fill); }
+  .wk-seg button { font: inherit; font-size: .8125rem; border: 0; border-radius: 999px; padding: .45rem .9rem; background: transparent; color: var(--ap-fg2); cursor: pointer; }
+  .wk-seg button[aria-pressed="true"] { background: var(--ap-card); color: var(--ap-fg); box-shadow: 0 1px 3px rgba(0,0,0,.12); }
+  .wk-meta { margin: 0; text-align: center; font-size: .8125rem; color: var(--ap-fg2); }
+
+  .wk-ports { display: grid; gap: 1rem; }
+  .wk-tog { display: grid; gap: .6rem; grid-template-columns: repeat(5, minmax(0, 1fr)); }
+  .wk-tog button { font: inherit; text-align: center; display: grid; gap: .25rem; justify-items: center; align-content: center; min-height: 6.25rem; padding: .9rem .6rem; border-radius: 16px; border: 0; cursor: pointer; background: color-mix(in srgb, #FF3B30 10%, var(--ap-card)); color: var(--ap-fg); box-shadow: inset 0 0 0 1.5px color-mix(in srgb, #FF3B30 45%, transparent); transition: background-color .3s, box-shadow .3s, color .3s; }
+  .wk-tog button[aria-pressed="false"] { background: var(--ap-fill); box-shadow: inset 0 0 0 1.5px transparent; color: var(--ap-fg2); }
   .wk-tog .p { font-weight: 600; font-size: .9375rem; }
-  .wk-tog .s { font-size: .75rem; font-weight: 600; letter-spacing: .02em; }
-  .wk-tog button[aria-pressed="true"] .s { color: #FF3B30; }
+  .wk-tog .s { font-size: .6875rem; font-weight: 700; letter-spacing: .04em; padding: .1rem .55rem; border-radius: 999px; background: #FF3B30; color: #fff; }
+  .wk-tog button[aria-pressed="false"] .s { background: var(--ap-gray); }
   .wk-tog .c { font-size: .75rem; color: var(--ap-fg2); font-variant-numeric: tabular-nums; }
-  .wk-out { display: grid; gap: .75rem; grid-template-columns: repeat(auto-fit, minmax(min(100%, 13rem), 1fr)); }
-  .wk-out > div { display: grid; gap: .2rem; justify-items: center; text-align: center; padding: 1.1rem; border-radius: 16px; background: var(--ap-fill); }
+  .wk-presets { display: flex; flex-wrap: wrap; gap: .45rem; justify-content: center; }
+  .wk-presets button { font: inherit; font-size: .8125rem; border: 0; border-radius: 999px; padding: .45rem .95rem; background: var(--ap-fill); color: var(--ap-fg); cursor: pointer; }
+  .wk-out { display: grid; gap: .75rem; grid-template-columns: repeat(3, minmax(0, 1fr)); }
+  .wk-out > div { display: grid; gap: .25rem; justify-items: center; align-content: center; text-align: center; padding: 1.2rem 1rem; border-radius: 16px; background: var(--ap-fill); }
   .wk-out .v { font-size: clamp(2rem, 4vw, 2.75rem); font-weight: 600; line-height: 1.05; letter-spacing: -.02em; font-variant-numeric: tabular-nums; }
   .wk-out .pc { font-size: .875rem; font-weight: 600; color: var(--ap-blue); }
   .wk-out .k { font-size: .8125rem; color: var(--ap-fg2); }
-  .wk-meter { height: .5rem; width: 100%; border-radius: 999px; background: var(--ap-card); overflow: hidden; margin-top: .25rem; }
+  .wk-meter { height: .5rem; width: 100%; border-radius: 999px; background: var(--ap-card); overflow: hidden; margin-top: .3rem; }
   .wk-meter i { display: block; height: 100%; background: var(--ap-blue); border-radius: inherit; transition: width .6s var(--ap-ease); }
-  .wk-presets { display: flex; flex-wrap: wrap; gap: .45rem; justify-content: center; }
-  .wk-presets button { font: inherit; font-size: .8125rem; border: 0; border-radius: 999px; padding: .4rem .85rem; background: var(--ap-fill); color: var(--ap-fg); cursor: pointer; }
+  .wk-ports > .hp-note { text-align: center; }
+  @media (max-width: 48rem) {
+    .wk-tog { display: flex; flex-wrap: wrap; justify-content: center; }
+    .wk-tog button { flex: 0 1 calc(50% - .3rem); min-height: 5.5rem; }
+    .wk-out { grid-template-columns: 1fr; }
+    .wk-picks { grid-template-columns: 1fr; }
+    .wk-term-h { grid-template-columns: auto 1fr; } .wk-term-h .info { text-align: right; } .wk-clock { grid-column: 1 / -1; text-align: center; }
+  }
   @media (prefers-reduced-motion: reduce) {
     .hp *, .hp *::before { animation: none !important; transition: none !important; }
     .hp.ap-js [data-reveal] { opacity: 1; transform: none; }
@@ -757,56 +777,101 @@ body{margin:0;padding:16px;background:var(--color-bg);color:var(--color-fg);font
     el.replaceChildren(...nodes);
   });
 
-  const wkPlayer = {pick: 0, timers: [], token: 0, played: false};
+  // Session replay. The runtime may call this draw again at any time (language switch, data refresh),
+  // so the player is built once per element and later calls only relabel it; playback is never reset by a redraw.
   dash.draw('wk-replay', (el) => {
     const reps = wkRows().filter((r) => r.kind === 'replay');
-    wkPlayer.token++; wkPlayer.timers.forEach(clearTimeout); wkPlayer.timers = [];
-    if (!reps.length) { el.replaceChildren(); return; }
-    if (wkPlayer.pick >= reps.length) wkPlayer.pick = 0;
+    const sig = reps.map((r) => r.sid).join(',');
+    if (el.__wk && el.__wk.sig === sig) { el.__wk.relabel(); return; }
+    if (el.__wk) el.__wk.stop();
+    if (!reps.length) { el.replaceChildren(); el.__wk = null; return; }
+    const st = {sig, pick: 0, mode: 'step', idx: 0, playing: false, timer: null, typer: null, played: false};
+    el.__wk = st;
+
     const picks = wkMk('div', 'wk-picks');
-    reps.forEach((r, i) => { const b = wkMk('button', '', wkL(r.title, r.title_en)); b.type = 'button'; b.setAttribute('aria-pressed', String(i === wkPlayer.pick)); b.onclick = () => { wkPlayer.pick = i; picks.querySelectorAll('button').forEach((x, j) => x.setAttribute('aria-pressed', String(j === i))); load(true); }; picks.append(b); });
-    const term = wkMk('div', 'wk-term'), head = wkMk('div', 'wk-term-h'), screen = wkMk('div', 'wk-screen');
-    const now = wkMk('div', 'wk-now'), ctrl = wkMk('div', 'wk-ctrl');
-    const play = wkMk('button', '', wkL('▶ เล่น', '▶ Play')); play.type = 'button';
-    const all = wkMk('button', 'sec', wkL('แสดงทั้งหมด', 'Show all')); all.type = 'button';
-    const meta = wkMk('span', 'meta');
-    ctrl.append(play, all, meta); term.append(head, screen);
-    el.replaceChildren(picks, term, now, ctrl);
-    let clock;
-    const setNow = (th, en) => { now.replaceChildren(wkMk('span', 'lbl', wkL('ตอนนี้บอท', 'Now')), Object.assign(wkMk('b'), {textContent: th ? wkL(th, en) : '…'})); };
+    const term = wkMk('div', 'wk-term'), head = wkMk('div', 'wk-term-h'), screen = wkMk('div', 'wk-screen'), prog = wkMk('div', 'wk-prog'), progI = wkMk('i');
+    prog.append(progI); term.append(head, screen, prog);
+    const now = wkMk('div', 'wk-now');
+    const ctrl = wkMk('div', 'wk-ctrl');
+    const bPlay = wkMk('button', 'pri'); bPlay.type = 'button';
+    const bRe = wkMk('button', 'sec'); bRe.type = 'button';
+    const seg = wkMk('div', 'wk-seg'); const mStep = wkMk('button'); const mReal = wkMk('button'); mStep.type = mReal.type = 'button'; seg.append(mStep, mReal);
+    ctrl.append(bPlay, bRe, seg);
+    const meta = wkMk('p', 'wk-meta');
+    el.replaceChildren(picks, term, now, ctrl, meta);
+
+    const cur = () => reps[st.pick];
+    const clearT = () => { clearTimeout(st.timer); clearTimeout(st.typer); st.timer = st.typer = null; };
+    const setNow = () => {
+      const r = cur(), c = r.cmds[Math.max(0, st.idx - 1)];
+      now.replaceChildren();
+      if (st.idx === 0) { now.append(wkMk('span', 'lbl', wkL('พร้อมเล่น', 'Ready')), wkMk('b', '', wkL(`กด ▶ เพื่อดูบอทพิมพ์ ${r.cmds.length} คำสั่ง`, `Press ▶ to watch ${r.cmds.length} commands`))); return; }
+      const done = st.idx >= r.cmds.length && !st.playing;
+      now.append(wkMk('span', 'lbl', done ? wkL('จบแล้ว', 'Done') : wkL('ตอนนี้บอท', 'Now')),
+        wkMk('b', '', done ? wkL(`${r.cmds.length} คำสั่ง ใช้เวลาจริงแค่ ${r.dur} วินาที`, `${r.cmds.length} commands in just ${r.dur} s of real time`) : (c[2] ? wkL(c[2], c[3]) : '…')));
+    };
+    const relabel = () => {
+      picks.querySelectorAll('button').forEach((b, i) => { b.textContent = wkL(reps[i].title, reps[i].title_en); });
+      bPlay.textContent = st.playing ? wkL('⏸ หยุด', '⏸ Pause') : (st.idx > 0 && st.idx < cur().cmds.length ? wkL('▶ เล่นต่อ', '▶ Resume') : wkL('▶ เล่น', '▶ Play'));
+      bRe.textContent = wkL('↺ เริ่มใหม่', '↺ Restart');
+      mStep.textContent = wkL('ทีละขั้น', 'Step by step'); mReal.textContent = wkL('ความเร็วจริง', 'Real speed');
+      mStep.setAttribute('aria-pressed', String(st.mode === 'step')); mReal.setAttribute('aria-pressed', String(st.mode === 'real'));
+      const r = cur();
+      meta.textContent = wkL(`กลุ่ม ${r.family} · ${r.cmds.length} คำสั่ง · เวลาจริง ${r.dur} วินาที · ${r.start}`, `family ${r.family} · ${r.cmds.length} commands · ${r.dur} s real time · ${r.start}`);
+      const info = head.querySelector('.info'); if (info) info.firstChild.textContent = `${r.proto.toUpperCase()} · login `;
+      setNow();
+    };
+    st.relabel = relabel;
     const line = (ts, text, sys) => { const l = wkMk('div', 'wk-line' + (sys ? ' sys' : '')); l.append(wkMk('span', 'ts', ts), wkMk('span', 'cmd', text)); screen.append(l); screen.scrollTop = screen.scrollHeight; return l; };
-    function load(autoplay) {
-      wkPlayer.token++; const tok = wkPlayer.token; wkPlayer.timers.forEach(clearTimeout); wkPlayer.timers = [];
-      const r = reps[wkPlayer.pick];
+    const clock = () => { const r = cur(), c = r.cmds[Math.max(0, st.idx - 1)]; head.querySelector('.wk-clock').textContent = `${st.idx ? c[0].toFixed(1) : '0.0'} / ${r.dur} s`; progI.style.width = `${100 * st.idx / r.cmds.length}%`; };
+    const reset = () => {
+      clearT(); st.playing = false; st.idx = 0;
+      const r = cur();
       head.replaceChildren();
       const dots = wkMk('span', 'wk-dots'); dots.append(wkMk('i'), wkMk('i'), wkMk('i'));
-      clock = wkMk('span', 'wk-clock', '0.0 s');
-      const info = wkMk('span'); info.innerHTML = `${r.proto.toUpperCase()} · login <code></code> · ${r.start}`; info.querySelector('code').textContent = `${r.user || '(blank)'} / ${r.pw || '(blank)'}`;
-      head.append(dots, info, clock);
-      screen.replaceChildren(); setNow('', '');
-      meta.textContent = wkL(`${r.cmds.length} คำสั่ง ใน ${r.dur} วินาที · กลุ่ม ${r.family}`, `${r.cmds.length} commands in ${r.dur} s · family ${r.family}`);
-      line('', wkL(`เชื่อมต่อ ${r.proto} สำเร็จ · login ผ่านด้วย ${r.user || '(ว่าง)'} / ${r.pw || '(ว่าง)'}`, `${r.proto} connected · logged in as ${r.user || '(blank)'} / ${r.pw || '(blank)'}`), true);
-      const showAll = () => { wkPlayer.token++; wkPlayer.timers.forEach(clearTimeout); screen.replaceChildren(); line('', wkL(`login ผ่านด้วย ${r.user || '(ว่าง)'} / ${r.pw || '(ว่าง)'}`, `logged in as ${r.user || '(blank)'} / ${r.pw || '(blank)'}`), true); r.cmds.forEach((c) => line(`${c[0].toFixed(1)}s`, c[1])); const last = r.cmds[r.cmds.length - 1]; setNow(last[2], last[3]); clock.textContent = `${r.dur} s`; screen.scrollTop = 0; };
-      all.onclick = showAll;
-      play.onclick = () => load(true);
-      if (!autoplay || wkReduce) { if (wkReduce && autoplay) showAll(); return; }
-      const t0 = performance.now();
-      const tick = () => { if (tok !== wkPlayer.token) return; const s = (performance.now() - t0) / 1000; clock.textContent = `${Math.min(s, r.dur + 0.05).toFixed(1)} s`; if (s < r.dur + 0.3) requestAnimationFrame(tick); else clock.textContent = `${r.dur} s`; };
-      requestAnimationFrame(tick);
-      r.cmds.forEach((c, i) => {
-        wkPlayer.timers.push(setTimeout(() => {
-          if (tok !== wkPlayer.token) return;
-          const l = line(`${c[0].toFixed(1)}s`, ''); const span = l.querySelector('.cmd'); const cur = wkMk('span', 'wk-cursor'); span.append(cur);
-          setNow(c[2], c[3]);
-          const text = c[1], step = Math.max(1, Math.ceil(text.length / 18)); let k = 0;
-          const type = () => { if (tok !== wkPlayer.token) return; k = Math.min(text.length, k + step); span.textContent = text.slice(0, k); if (k < text.length) { span.append(cur); wkPlayer.timers.push(setTimeout(type, 12)); } else if (i === r.cmds.length - 1) { span.append(cur); } screen.scrollTop = screen.scrollHeight; };
-          type();
-        }, c[0] * 1000));
-      });
-    }
-    load(false);
-    if (!wkPlayer.played && 'IntersectionObserver' in window) {
-      const io = new IntersectionObserver((es) => { if (es.some((e) => e.isIntersecting) && !wkPlayer.played) { wkPlayer.played = true; io.disconnect(); load(true); } }, {threshold: 0.5});
+      const info = wkMk('span', 'info'); info.append(document.createTextNode(`${r.proto.toUpperCase()} · login `), wkMk('code', '', `${r.user || '(blank)'} / ${r.pw || '(blank)'}`));
+      head.append(dots, info, wkMk('span', 'wk-clock'));
+      screen.replaceChildren();
+      line('', `${r.proto} · login ${r.user || '(blank)'} / ${r.pw || '(blank)'} ✓`, true);
+      clock(); relabel();
+    };
+    const step = () => {
+      const r = cur();
+      if (st.idx >= r.cmds.length) { st.playing = false; clock(); relabel(); return; }
+      const c = r.cmds[st.idx]; st.idx++;
+      const l = line(`${c[0].toFixed(1)}s`, ''); const span = l.querySelector('.cmd'); const caret = wkMk('span', 'wk-cursor');
+      clock(); setNow();
+      const text = c[1], slow = st.mode === 'step';
+      const per = slow ? Math.max(1, Math.ceil(text.length / 40)) : text.length;   // chars per tick
+      let k = 0;
+      const type = () => {
+        k = Math.min(text.length, k + per); span.textContent = text.slice(0, k); span.append(caret); screen.scrollTop = screen.scrollHeight;
+        if (k < text.length) { st.typer = setTimeout(type, 22); return; }
+        if (!st.playing) return;
+        const next = r.cmds[st.idx];
+        const wait = !next ? 0 : (slow ? 650 : Math.max(0, (next[0] - c[0]) * 1000));
+        st.timer = setTimeout(() => { caret.remove(); step(); }, wait);
+      };
+      type();
+    };
+    const play = () => {
+      if (st.playing) { st.playing = false; clearT(); relabel(); return; }
+      if (st.idx >= cur().cmds.length) reset();
+      st.playing = true; st.played = true; relabel();
+      if (wkReduce) { while (st.idx < cur().cmds.length) { const c = cur().cmds[st.idx++]; line(`${c[0].toFixed(1)}s`, c[1]); } st.playing = false; clock(); relabel(); return; }
+      step();
+    };
+    st.stop = () => { st.playing = false; clearT(); };
+    bPlay.onclick = play;
+    bRe.onclick = () => { reset(); play(); };
+    mStep.onclick = () => { st.mode = 'step'; relabel(); };
+    mReal.onclick = () => { st.mode = 'real'; relabel(); };
+    reps.forEach((r, i) => { const b = wkMk('button'); b.type = 'button'; b.setAttribute('aria-pressed', String(i === 0));
+      b.onclick = () => { st.pick = i; picks.querySelectorAll('button').forEach((x, j) => x.setAttribute('aria-pressed', String(j === i))); reset(); play(); };
+      picks.append(b); });
+    reset();
+    if ('IntersectionObserver' in window && !wkReduce) {
+      const io = new IntersectionObserver((es) => { if (es.some((e) => e.isIntersecting) && !st.played) { io.disconnect(); play(); } }, {threshold: 0.6});
       io.observe(term);
     }
   });
