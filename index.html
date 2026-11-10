@@ -205,15 +205,54 @@ body{margin:0;padding:16px;background:var(--color-bg);color:var(--color-fg);font
   .hx-chips code { font-size: .75rem; padding: .15rem .5rem; border-radius: 999px; background: var(--ap-card); color: var(--ap-fg); }
   #webports .hp-table { min-width: 44rem; } #webports .hp-table code { white-space: nowrap; }
   .hx-h { margin: .75rem 0 0; font-size: 1rem; font-weight: 600; letter-spacing: -.01em; }
-  .hx-bars { list-style: none; margin: 0; padding: 0; display: grid; gap: .55rem; }
-  .hx-bars li { display: grid; grid-template-columns: minmax(0, 15rem) minmax(0, 1fr) 7.5rem; gap: .75rem; align-items: center; font-size: .875rem; }
+  .hx-hint { font-size: .8125rem; font-weight: 400; color: var(--ap-fg2); }
+  .hx-bars { display: grid; gap: .35rem; }
+  .hx-item { border-radius: 14px; transition: background-color .3s var(--ap-ease); }
+  .hx-item[open] { background: var(--ap-fill); }
+  .hx-item > summary { list-style: none; cursor: pointer; display: grid; grid-template-columns: 1rem minmax(0, 15rem) minmax(0, 1fr) 7.5rem; gap: .75rem; align-items: center; font-size: .875rem; padding: .45rem .6rem; border-radius: 14px; }
+  .hx-item > summary::-webkit-details-marker { display: none; }
+  @media (hover: hover) { .hx-item > summary:hover { background: var(--ap-fill); } }
+  .hx-item > summary:focus-visible { outline: 2px solid var(--ap-blue); outline-offset: 2px; }
+  .hx-item .chev { width: .5rem; height: .5rem; border-right: 1.6px solid var(--ap-gray); border-bottom: 1.6px solid var(--ap-gray); transform: rotate(-45deg); transition: transform .3s var(--ap-ease); justify-self: center; }
+  .hx-item[open] .chev { transform: rotate(45deg); }
   .hx-bars .t { height: .55rem; border-radius: 999px; background: var(--ap-fill); overflow: hidden; }
-  .hx-bars .b { display: block; height: 100%; border-radius: inherit; background: var(--ap-gray); transform-origin: left; }
-  .hx-bars li.is-hot .b { background: var(--ap-blue); }
-  .hx-bars li.is-hot .l { font-weight: 600; }
+  .hx-item[open] .t { background: var(--ap-card); }
+  .hx-bars .b { display: block; height: 100%; border-radius: inherit; background: var(--ap-gray); }
+  .hx-item.is-hot .b { background: var(--ap-blue); }
+  .hx-item.is-hot .l { font-weight: 600; }
   .hx-bars .v { text-align: right; font-variant-numeric: tabular-nums; color: var(--ap-fg2); font-size: .8125rem; }
   .hx-bars .v b { color: var(--ap-fg); font-weight: 600; }
-  @media (max-width: 40rem) { .hx-bars li { grid-template-columns: 1fr 6.5rem; } .hx-bars .t { grid-column: 1 / -1; grid-row: 2; } }
+  .hx-detail { display: grid; gap: 1rem; padding: .35rem 1rem 1.1rem 2.35rem; font-size: .8125rem; animation: hx-in .35s var(--ap-ease); }
+  @keyframes hx-in { from { opacity: 0; transform: translateY(-4px); } }
+  .hx-what { margin: 0; font-size: .875rem; line-height: 1.6; color: var(--ap-fg); max-width: 52rem; }
+  .hx-what b { font-weight: 600; }
+  .hx-cols { display: grid; gap: 1rem 1.5rem; grid-template-columns: repeat(auto-fit, minmax(min(100%, 18rem), 1fr)); }
+  .hx-box { display: grid; gap: .45rem; align-content: start; min-width: 0; }
+  .hx-box h4 { margin: 0; font-size: .75rem; font-weight: 600; letter-spacing: .02em; text-transform: uppercase; color: var(--ap-fg2); }
+  .hx-sub { display: grid; grid-template-columns: minmax(0, 1fr) 4.5rem; gap: .15rem .75rem; align-items: center; }
+  .hx-sub .sl { overflow-wrap: anywhere; }
+  .hx-sub .sn { text-align: center; font-variant-numeric: tabular-nums; font-weight: 600; }
+  .hx-sub .st { grid-column: 1 / -1; height: 3px; border-radius: 999px; background: var(--ap-card); overflow: hidden; margin-bottom: .2rem; }
+  .hx-sub .st i { display: block; height: 100%; background: var(--ap-gray); border-radius: inherit; }
+  .hx-item.is-hot .hx-sub .st i { background: var(--ap-blue); }
+  .hx-ex { list-style: none; margin: 0; padding: 0; display: grid; gap: .3rem; }
+  .hx-ex li { display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: .6rem; align-items: start; }
+  .hx-ex code { display: block; font-size: .75rem; line-height: 1.45; padding: .3rem .5rem; border-radius: 8px; background: var(--ap-card); overflow-wrap: anywhere; white-space: pre-wrap; }
+  .hx-ex .n { font-variant-numeric: tabular-nums; color: var(--ap-fg2); padding-top: .3rem; }
+  .hx-days { display: flex; align-items: flex-end; gap: 3px; height: 3.25rem; }
+  .hx-days span { flex: 1; min-width: 4px; border-radius: 3px 3px 1px 1px; background: var(--ap-gray); position: relative; }
+  .hx-item.is-hot .hx-days span { background: var(--ap-blue); }
+  .hx-days span.z { background: var(--ap-card); height: 2px !important; }
+  .hx-axis { display: flex; justify-content: space-between; font-size: .6875rem; color: var(--ap-fg2); }
+  .hx-cc { display: flex; flex-wrap: wrap; gap: .35rem; }
+  .hx-cc span { padding: .2rem .6rem; border-radius: 999px; background: var(--ap-card); font-size: .75rem; }
+  .hx-cc b { font-variant-numeric: tabular-nums; margin-left: .25rem; }
+  .hx-foot { margin: 0; color: var(--ap-fg2); }
+  @media (max-width: 40rem) {
+    .hx-item > summary { grid-template-columns: 1rem minmax(0, 1fr) 6.5rem; }
+    .hx-item > summary .t { grid-column: 2 / -1; grid-row: 2; }
+    .hx-detail { padding-left: .9rem; padding-right: .9rem; }
+  }
   .hp-src { font-size: .8125rem; color: var(--ap-fg2); margin: .25rem 0 0; }
 
   /* scroll reveal */
@@ -568,8 +607,8 @@ body{margin:0;padding:16px;background:var(--color-bg);color:var(--color-fg);font
         <div class="hx-tile"><span class="hp-tile-l"><span data-l="th">ลองใช้เครื่องเป็น proxy</span><span data-l="en">Tried to use it as a proxy</span></span><span class="hx-v" data-draw="h-kpi" data-source="http_rows" data-key="proxy">—</span><span class="hp-tile-n"><span data-l="th">ส่วนใหญ่ทางพอร์ต 8080 (</span><span data-l="en">mostly on port 8080 (</span><b data-draw="h-kpi" data-source="http_rows" data-key="proxy_8080">—</b>)</span></div>
         <div class="hx-tile"><span class="hp-tile-l"><span data-l="th">คำสั่งโจมตีแบบ TR-069</span><span data-l="en">TR-069 attack commands</span></span><span class="hx-v" data-draw="h-kpi" data-source="http_rows" data-key="tr069_attack">—</span><span class="hp-tile-n"><span data-l="th">7547 โดนสแกน </span><span data-l="en">7547 was scanned </span><b data-draw="h-kpi" data-source="http_rows" data-key="tr069">—</b><span data-l="th"> ครั้ง แต่ไม่มีคำสั่ง TR-069</span><span data-l="en"> times, but no TR-069 commands</span></span></div>
       </div>
-      <h3 class="hx-h"><span data-l="th">บอทเข้ามาทำอะไร</span><span data-l="en">What the requests were for</span></h3>
-      <ul class="hx-bars" data-draw="h-cats" data-source="http_rows"></ul>
+      <h3 class="hx-h"><span data-l="th">บอทเข้ามาทำอะไร</span><span data-l="en">What the requests were for</span> <span class="hx-hint"><span data-l="th">· กดแต่ละหัวข้อเพื่อดูรายละเอียด</span><span data-l="en">· tap a row for details</span></span></h3>
+      <div class="hx-bars" data-draw="h-cats" data-source="http_rows"></div>
       <h3 class="hx-h"><span data-l="th">ที่เล็ง ONU / router โดยตรง</span><span data-l="en">Aimed straight at ONUs / routers</span></h3>
       <div class="hp-tablebox">
         <table class="hp-table">
@@ -1006,16 +1045,78 @@ body{margin:0;padding:16px;background:var(--color-bg);color:var(--color-fg);font
     el.replaceChildren(Object.assign(document.createElement('span'), {className: 'hx-chips'}));
     c.forEach((r) => el.firstChild.append(Object.assign(document.createElement('code'), {textContent: `${r.key} ×${r.n}`})));
   });
+  const HX_WHAT = {
+    onu: ['บอทเน็ตหว่านช่องโหว่ที่รู้จักของ router / ONU หลายยี่ห้อใส่ทุก IP ถ้าสำเร็จจะ<b>โหลดมัลแวร์มารัน</b> แล้วใช้เครื่องนั้นสแกนและยิงต่อ · <b>กลุ่มนี้ตรงกับ ONU ของเรามากที่สุด</b>',
+      'Botnets spray known router / ONU exploits at every IP. If one works it <b>downloads malware and runs it</b>, then uses the device to scan and attack further · <b>this is the group closest to our ONUs</b>'],
+    tr069: ['เครื่องสแกนแกล้งเป็น CPE ส่ง <code>Inform</code> มา เพื่อดูว่าพอร์ต 7547 ตอบแบบ ACS ไหม · <b>ยังไม่ใช่การสั่งงานหรือเจาะอุปกรณ์</b>',
+      'Scanners pretend to be a CPE and send an <code>Inform</code> to see whether port 7547 answers like an ACS · <b>not a command to, or attack on, the device</b>'],
+    webapp: ['หว่านช่องโหว่เว็บแอปที่ดัง ๆ ใส่ทุก IP โดยไม่สนว่าเครื่องเป็นอะไร เป้าหมายคือ<b>รันคำสั่งบนเครื่อง</b>หรือ<b>ขโมยรหัสผ่าน / key</b>',
+      'Well-known web-app exploits sprayed at every IP whatever the device is. The goal is to <b>run commands</b> or <b>steal passwords / keys</b>'],
+    secret: ['ไล่เดาชื่อไฟล์ที่มักมี<b>รหัสผ่าน หรือ API key</b> หลุดอยู่ เช่น <code>.env</code> <code>.git</code> <code>.aws</code> ถ้าเจอจะเอาไปใช้เข้าระบบอื่นต่อ',
+      'Guessing file names that often leak <b>passwords or API keys</b>, such as <code>.env</code>, <code>.git</code> and <code>.aws</code>, to reuse them elsewhere'],
+    proxy: ['ทดสอบว่าเครื่องเรา<b>ยอมส่งต่อ traffic ออก internet</b> ไหม ถ้ายอม บอทจะใช้เป็นทางผ่านเพื่อซ่อน IP ตัวเอง',
+      'Testing whether we <b>relay traffic to the internet</b>; if so, bots use us as a hop to hide their own IP'],
+    ai: ['สำรวจหา <b>AI server แบบ MCP</b> ที่เปิดทิ้งไว้บน internet · ส่วนใหญ่มาจากโครงการสำรวจ internet ที่บอกชื่อตัวเอง',
+      'Looking for <b>MCP AI servers</b> left open on the internet · mostly internet-survey projects that name themselves'],
+    recon: ['เปิดหน้าแรก, favicon และไล่หาหน้า login เพื่อ<b>ดูว่าเป็นอุปกรณ์หรือโปรแกรมอะไร</b> ก่อนเลือกว่าจะยิงอะไรต่อ',
+      'Opening the front page, favicon and login pages to <b>work out what device or software this is</b> before choosing what to fire next'],
+    noise: ['ต่อเข้ามาแล้ว<b>ไม่คุย HTTP</b> เช่นส่ง TLS, RDP, SMB หรือเงียบไปเลย เพื่อเช็คว่าพอร์ตนี้เป็นบริการอะไร (แบบเครื่องมือ nmap)',
+      '<b>Not speaking HTTP</b>: sending TLS, RDP, SMB or nothing at all, to check which service the port runs (nmap-style)'],
+  };
+  const hxOpen = new Set();
+  const ccName = (c) => { if (c === '??') return window.HP.L('ไม่ทราบ', 'unknown'); try { return new Intl.DisplayNames([window.HP.L('th', 'en')], {type: 'region'}).of(c); } catch (e) { return c; } };
+  const mk = (tag, cls, text) => { const n = document.createElement(tag); if (cls) n.className = cls; if (text != null) n.textContent = text; return n; };
   dash.draw('h-cats', (el) => {
-    const c = hRows().filter((x) => x.kind === 'cat' && x.n > 0).sort((a, b) => b.n - a.n);
+    const rows = hRows();
+    const c = rows.filter((x) => x.kind === 'cat' && x.n > 0).sort((a, b) => b.n - a.n);
     const max = Math.max(1, ...c.map((r) => r.n)), hot = new Set(['onu', 'webapp', 'secret', 'proxy']);
+    const days = [...new Set(rows.filter((x) => x.kind === 'day').map((x) => x.key))].sort();
     el.replaceChildren(...c.map((r) => {
-      const li = document.createElement('li'); if (hot.has(r.key)) li.className = 'is-hot';
-      const l = Object.assign(document.createElement('span'), {className: 'l', textContent: window.HP.L(r.th, r.en)});
-      const t = Object.assign(document.createElement('span'), {className: 't'}); const b = Object.assign(document.createElement('span'), {className: 'b'});
-      b.style.width = `${Math.max(1.5, 100 * r.n / max)}%`; t.append(b);
-      const v = document.createElement('span'); v.className = 'v'; v.innerHTML = `<b>${fmtB(r.n)}</b> · ${fmtB(r.ips)} IP`;
-      li.append(l, t, v); return li;
+      const d = document.createElement('details'); d.className = 'hx-item' + (hot.has(r.key) ? ' is-hot' : ''); d.open = hxOpen.has(r.key);
+      d.addEventListener('toggle', () => { if (d.open) hxOpen.add(r.key); else hxOpen.delete(r.key); });
+      const sm = document.createElement('summary');
+      const t = mk('span', 't'); const b = mk('span', 'b'); b.style.width = `${Math.max(1.5, 100 * r.n / max)}%`; t.append(b);
+      const v = mk('span', 'v'); v.innerHTML = `<b>${fmtB(r.n)}</b> · ${fmtB(r.ips)} IP`;
+      sm.append(mk('span', 'chev'), mk('span', 'l', window.HP.L(r.th, r.en)), t, v);
+      const det = mk('div', 'hx-detail');
+      const what = mk('p', 'hx-what'); const w = HX_WHAT[r.key]; what.innerHTML = w ? window.HP.L(w[0], w[1]) : ''; det.append(what);
+      const cols = mk('div', 'hx-cols');
+      const subs = rows.filter((x) => x.kind === 'sub' && x.cat === r.key);
+      if (subs.length) {
+        const box = mk('div', 'hx-box'); box.append(mk('h4', '', window.HP.L('แยกย่อย', 'Breakdown')));
+        const g = mk('div', 'hx-sub'); const sm2 = Math.max(1, ...subs.map((x) => x.n));
+        subs.forEach((x) => { const st = mk('span', 'st'); const i = mk('i'); i.style.width = `${100 * x.n / sm2}%`; st.append(i);
+          g.append(mk('span', 'sl', window.HP.L(x.th, x.en)), mk('span', 'sn', fmtB(x.n)), st); });
+        box.append(g); cols.append(box);
+      }
+      const ex = rows.filter((x) => x.kind === 'ex' && x.cat === r.key);
+      if (ex.length) {
+        const box = mk('div', 'hx-box'); box.append(mk('h4', '', window.HP.L('request ที่เจอบ่อย', 'Most common requests')));
+        const ul = mk('ul', 'hx-ex'); ex.forEach((x) => { const li = mk('li'); li.append(mk('code', '', x.key), mk('span', 'n', `×${fmtB(x.n)}`)); ul.append(li); });
+        box.append(ul); cols.append(box);
+      }
+      det.append(cols);
+      const cols2 = mk('div', 'hx-cols');
+      const per = new Map(rows.filter((x) => x.kind === 'day' && x.cat === r.key).map((x) => [x.key, x.n]));
+      if (days.length) {
+        const box = mk('div', 'hx-box'); box.append(mk('h4', '', window.HP.L('รายวัน', 'Per day')));
+        const bars = mk('div', 'hx-days'); const dm = Math.max(1, ...per.values());
+        days.forEach((k) => { const n = per.get(k) || 0; const s = mk('span', n ? '' : 'z'); s.style.height = `${Math.max(6, 100 * n / dm)}%`; s.title = `${hDate(k)} · ${fmtB(n)}`; bars.append(s); });
+        const ax = mk('div', 'hx-axis'); ax.append(mk('span', '', hDate(days[0])), mk('span', '', hDate(days[days.length - 1])));
+        box.append(bars, ax); cols2.append(box);
+      }
+      const cc = rows.filter((x) => x.kind === 'cc' && x.cat === r.key);
+      if (cc.length) {
+        const box = mk('div', 'hx-box'); box.append(mk('h4', '', window.HP.L('IP มาจากประเทศ (ประมาณ)', 'Source countries (approx.)')));
+        const wrap = mk('div', 'hx-cc'); cc.forEach((x) => { const s = mk('span', '', ccName(x.key)); s.append(mk('b', '', fmtB(x.n))); wrap.append(s); });
+        box.append(wrap);
+        const sc = rows.find((x) => x.kind === 'scan' && x.cat === r.key);
+        if (sc && r.n) box.append(mk('p', 'hx-foot', window.HP.L(`${Math.round(100 * sc.n / r.n)}% มาจากเครื่องสแกนที่บอกชื่อตัวเอง (เช่น Censys, Palo Alto)`, `${Math.round(100 * sc.n / r.n)}% came from scanners that name themselves (e.g. Censys, Palo Alto)`)));
+        cols2.append(box);
+      }
+      det.append(cols2);
+      d.append(sm, det);
+      return d;
     }));
   });
   dash.draw('h-onu', (el) => {
