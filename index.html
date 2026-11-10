@@ -587,16 +587,6 @@ body{margin:0;padding:16px;background:var(--color-bg);color:var(--color-fg);font
       </article>
     </div>
 
-    <section class="hp-sec" id="actions">
-      <h2><span data-l="th">สิ่งที่ควรทำกับ ONU ที่เราดูแล</span><span data-l="en">What to do on the ONUs we manage</span></h2>
-      <ul class="hp-actions">
-        <li><strong><span data-l="th">ปิด Telnet, SSH, HTTP 80/8080 ฝั่ง WAN เป็นค่าเริ่มต้น</span><span data-l="en">Close Telnet, SSH and HTTP 80/8080 on the WAN side by default</span></strong><span><span data-l="th">ทุกพอร์ตที่เปิดออก internet ถูกสแกนเจอภายในไม่กี่นาที ไม่ใช่หลายวัน</span><span data-l="en">Every port open to the internet is found within minutes, not days</span></span></li>
-        <li><strong><span data-l="th">ถ้าจำเป็นต้องเปิด ให้จำกัดต้นทางด้วย ACL</span><span data-l="en">If it must be open, restrict the source with an ACL</span></strong><span><span data-l="th">รับเฉพาะ IP ของระบบที่ต้องใช้จริง และปิด Telnet ทิ้งถ้ามี SSH แล้ว</span><span data-l="en">Accept only the IPs of systems that really need it, and drop Telnet when SSH exists</span></span></li>
-        <li><strong><span data-l="th">เลิกใช้รหัส default ที่เหมือนกันทุกเครื่อง</span><span data-l="en">Stop using a default password that is the same on every unit</span></strong><span><span data-l="th">รหัสในตารางด้านบนคือ list ที่บอทเดาทุกตัว ควรเป็นรหัสเฉพาะเครื่อง</span><span data-l="en">The passwords in the table above are the list every bot guesses; use a per-device password</span></span></li>
-        <li><strong><span data-l="th">TR-069 (7547) รับเฉพาะ ACS</span><span data-l="en">TR-069 (7547) from the ACS only</span></strong><span><span data-l="th">ตั้งที่ฝั่ง ONU ให้ connection request รับจาก IP ของ ACS เท่านั้น</span><span data-l="en">Set on the ONU side so connection requests are accepted only from the ACS IP</span></span></li>
-      </ul>
-      <p class="hp-note"><span data-l="th">วิธีเก็บข้อมูล: Cowrie จำลอง shell ของ SSH/Telnet และตัวดักพอร์ต HTTP/TR-069 บันทึก request ดิบ ไม่มีคำสั่งไหนรันจริงบนเครื่อง ตัวเลขนับเฉพาะ IP ภายนอก (ตัด IP ของทีม 2 ตัวออก)</span><span data-l="en">How it is collected: Cowrie emulates the SSH/Telnet shell and a catcher on the HTTP/TR-069 ports records raw requests; no command really runs on the machine. Counts include outside IPs only (the team’s 2 IPs are excluded).</span><span data-l="th"> ประเทศประมาณจาก IP ด้วยฐาน </span><span data-l="en"> Countries are approximated from the IP with </span><span data-draw="g-db" data-source="geo_kpis" data-field="db" data-row="0">—</span>.</p>
-    </section>
   </section>
 
   <section class="hp-page" id="map" data-page="map" hidden>
