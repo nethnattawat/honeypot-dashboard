@@ -113,6 +113,7 @@ body{margin:0;padding:16px;background:var(--color-bg);color:var(--color-fg);font
   .hp-page > .hp-head:not(.hp-hero) .hp-take b { color: var(--ap-fg); }
   .hp-lede { margin: 0; font-size: clamp(1.05rem, 1.9vw, 1.3125rem); line-height: 1.45; color: var(--ap-fg2); max-width: 44rem; text-wrap: pretty; }
   .hp-meta { margin: 0; font-size: .8125rem; color: var(--ap-fg2); max-width: 46rem; }
+  .hp-foot { padding: 1.25rem 0 .5rem; border-top: 1px solid var(--ap-line); text-align: center; font-size: .8125rem; color: var(--ap-fg2); font-variant-numeric: tabular-nums; }
 
   .hp-page { display: grid; gap: clamp(1.25rem, 2.5vw, 1.75rem); }
   .hp-page[hidden] { display: none; }
@@ -315,8 +316,6 @@ body{margin:0;padding:16px;background:var(--color-bg);color:var(--color-fg);font
     <header class="hp-head hp-hero" id="top">
       <h1 class="hp-eyebrow">CPE Honeypot Watch</h1>
       <p class="hp-take"><span data-l="th">บอทเจอพอร์ตที่เปิดภายใน </span><span data-l="en">Bots found the open ports within </span><b data-draw="k-first" data-source="kpis" data-field="first_minutes" data-row="0">—</b><span data-l="th"> นาที และ login ผ่านด้วยรหัสที่เดาได้ </span><span data-l="en"> minutes and logged in with guessable passwords </span><b data-draw="k-ok" data-source="kpis" data-field="login_success" data-row="0">—</b><span data-l="th"> ครั้ง ใน </span><span data-l="en"> times over </span><b data-draw="k-days" data-source="kpis" data-field="days" data-row="0">—</b><span data-l="th"> วันที่เก็บข้อมูล</span><span data-l="en"> days of data</span></p>
-      <p class="hp-lede"><span data-l="th">เครื่องล่อที่ปลอมตัวเป็น router/ONU บ้าน เปิด Telnet (23), SSH (22), HTTP (80, 8080) และ TR-069 (7547) ออก internet ตรง ๆ แบบเดียวกับ ONU ที่เปิด management ไว้ฝั่ง WAN แล้วบันทึกทุกอย่างที่บอทพยายามทำ</span><span data-l="en">A decoy that poses as a home router/ONU, exposing Telnet (23), SSH (22), HTTP (80, 8080) and TR-069 (7547) straight to the internet, the same way an ONU with management open on the WAN side would, and recording everything the bots try.</span></p>
-      <p class="hp-meta"><span data-l="th">เหตุการณ์ล่าสุดในข้อมูล </span><span data-l="en">Latest event in the data </span><span data-draw="k-gen" data-source="kpis" data-field="generated" data-row="0">—</span><span data-l="th"> (เวลาไทย) · ตัด IP ของทีมเองออกแล้ว</span><span data-l="en"> (Bangkok time) · the team’s own IPs are excluded</span></p>
     </header>
     <section class="hp-tiles" aria-label="ภาพรวม" data-en-aria="Overview">
       <div class="hp-tile">
@@ -552,6 +551,7 @@ body{margin:0;padding:16px;background:var(--color-bg);color:var(--color-fg);font
       <p class="hp-src"><span data-l="th">อ้างอิงลำดับคำสั่ง Mirai: </span><span data-l="en">Mirai command order reference: </span><a href="https://raw.githubusercontent.com/jgamblin/Mirai-Source-Code/master/mirai/bot/scanner.c" target="_blank" rel="noopener">Mirai scanner.c</a> <span data-l="th">(ส่ง enable, system, shell, sh แล้ว query busybox หลัง login; string table เข้ารหัสด้วย XOR)</span><span data-l="en">(sends enable, system, shell, sh, then queries busybox after login; its string table is XOR-encoded)</span></p>
     </article>
   </section>
+  <footer class="hp-foot"><span data-l="th">อัปเดตล่าสุด </span><span data-l="en">Last updated </span><span data-draw="k-gen" data-source="kpis" data-field="generated" data-row="0">—</span></footer>
 </div>
 
 <script>{
@@ -763,7 +763,8 @@ body{margin:0;padding:16px;background:var(--color-bg);color:var(--color-fg);font
   dash.draw('k-days', kpi('days', fmt));
   dash.draw('k-total', kpi('total', fmt));
   dash.draw('k-telnet', kpi('telnet', fmt));
-  dash.draw('k-gen', kpi('generated', (v) => v));
+  const MON_TH = ['ม.ค.', 'ก.พ.', 'มี.ค.', 'เม.ย.', 'พ.ค.', 'มิ.ย.', 'ก.ค.', 'ส.ค.', 'ก.ย.', 'ต.ค.', 'พ.ย.', 'ธ.ค.'], MON_EN = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
+  dash.draw('k-gen', kpi('generated', (v) => { const [d, t] = v.split(' '), [y, m, dd] = d.split('-').map(Number); return window.HP.L(`${dd} ${MON_TH[m - 1]} ${y} · ${t} น.`, `${dd} ${MON_EN[m - 1]} ${y}, ${t} (Bangkok time)`); }));
   dash.draw('sys-total-w', kpi('total', fmt));
   dash.draw('sys-total-t', kpi('total', fmt));
 
