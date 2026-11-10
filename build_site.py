@@ -23,7 +23,7 @@ body{margin:0;padding:16px;background:var(--color-bg);color:var(--color-fg);font
 <script src="https://cdnjs.cloudflare.com/ajax/libs/d3/7.9.0/d3.min.js"></script>
 <script>
 (() => {
-  const DATA = {}, calcs = {}, draws = [], onData = [], res = {};
+  const DATA = {}, calcs = {}, draws = [], onData = [], res = {}, mounted = new Map();
   let params = {};
   try { params = JSON.parse(localStorage.getItem('hp-params') || '{}'); } catch (e) {}
   const run = () => {
@@ -31,7 +31,7 @@ body{margin:0;padding:16px;background:var(--color-bg);color:var(--color-fg);font
       try { res[id] = {status: 'ok', data: s.fn(...s.inputs.map((i) => DATA[i]))}; }
       catch (e) { console.error('calc', id, e); res[id] = {status: 'error'}; }
     }
-    for (const [id, fn] of draws) document.querySelectorAll(`[data-draw="${id}"]`).forEach((el) => { try { fn(el); } catch (e) { console.error('draw', id, e); } });
+    for (const [id, spec] of draws) document.querySelectorAll(`[data-draw="${id}"]`).forEach((el) => { if (el.closest('[hidden]')) return; try { if (typeof spec === 'function') spec(el); else { if (!mounted.has(el)) { if (spec.mount) el.replaceChildren(); mounted.set(el, {spec, made: spec.mount ? spec.mount(el) : undefined}); } spec.update && spec.update(el, mounted.get(el).made); } } catch (e) { console.error('draw', id, e); } }); for (const [el, m] of [...mounted]) if (!el.isConnected) { mounted.delete(el); m.spec.unmount && m.spec.unmount(el, m.made); }
     onData.forEach((f) => { try { f(); } catch (e) { console.error(e); } });
   };
   window.dash = {
@@ -45,7 +45,7 @@ body{margin:0;padding:16px;background:var(--color-bg);color:var(--color-fg);font
   };
   const names = ['honeypot', 'bots', 'geo', 'events', 'http', 'story'];
   const loaded = Promise.all(names.map((n) => fetch(`data/${n}.json`).then((r) => r.json()).then((j) => { DATA[n] = j.rows; })));
-  document.addEventListener('DOMContentLoaded', () => loaded.then(() => { document.querySelector('.site-load')?.remove(); run(); })
+  document.addEventListener('DOMContentLoaded', () => loaded.then(() => { document.querySelector('.site-load')?.remove(); run(); const mo = new MutationObserver(() => run()); document.querySelectorAll('.hp-page').forEach((pg) => mo.observe(pg, {attributes: true, attributeFilter: ['hidden']})); })
     .catch((e) => { const m = document.querySelector('.site-load'); if (m) m.textContent = 'Could not load data: ' + e; }));
 })();
 </script>

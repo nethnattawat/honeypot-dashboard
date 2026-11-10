@@ -14,7 +14,7 @@ body{margin:0;padding:16px;background:var(--color-bg);color:var(--color-fg);font
 <script src="https://cdnjs.cloudflare.com/ajax/libs/d3/7.9.0/d3.min.js"></script>
 <script>
 (() => {
-  const DATA = {}, calcs = {}, draws = [], onData = [], res = {};
+  const DATA = {}, calcs = {}, draws = [], onData = [], res = {}, mounted = new Map();
   let params = {};
   try { params = JSON.parse(localStorage.getItem('hp-params') || '{}'); } catch (e) {}
   const run = () => {
@@ -22,7 +22,7 @@ body{margin:0;padding:16px;background:var(--color-bg);color:var(--color-fg);font
       try { res[id] = {status: 'ok', data: s.fn(...s.inputs.map((i) => DATA[i]))}; }
       catch (e) { console.error('calc', id, e); res[id] = {status: 'error'}; }
     }
-    for (const [id, fn] of draws) document.querySelectorAll(`[data-draw="${id}"]`).forEach((el) => { try { fn(el); } catch (e) { console.error('draw', id, e); } });
+    for (const [id, spec] of draws) document.querySelectorAll(`[data-draw="${id}"]`).forEach((el) => { if (el.closest('[hidden]')) return; try { if (typeof spec === 'function') spec(el); else { if (!mounted.has(el)) { if (spec.mount) el.replaceChildren(); mounted.set(el, {spec, made: spec.mount ? spec.mount(el) : undefined}); } spec.update && spec.update(el, mounted.get(el).made); } } catch (e) { console.error('draw', id, e); } }); for (const [el, m] of [...mounted]) if (!el.isConnected) { mounted.delete(el); m.spec.unmount && m.spec.unmount(el, m.made); }
     onData.forEach((f) => { try { f(); } catch (e) { console.error(e); } });
   };
   window.dash = {
@@ -36,7 +36,7 @@ body{margin:0;padding:16px;background:var(--color-bg);color:var(--color-fg);font
   };
   const names = ['honeypot', 'bots', 'geo', 'events', 'http', 'story'];
   const loaded = Promise.all(names.map((n) => fetch(`data/${n}.json`).then((r) => r.json()).then((j) => { DATA[n] = j.rows; })));
-  document.addEventListener('DOMContentLoaded', () => loaded.then(() => { document.querySelector('.site-load')?.remove(); run(); })
+  document.addEventListener('DOMContentLoaded', () => loaded.then(() => { document.querySelector('.site-load')?.remove(); run(); const mo = new MutationObserver(() => run()); document.querySelectorAll('.hp-page').forEach((pg) => mo.observe(pg, {attributes: true, attributeFilter: ['hidden']})); })
     .catch((e) => { const m = document.querySelector('.site-load'); if (m) m.textContent = 'Could not load data: ' + e; }));
 })();
 </script>
@@ -751,7 +751,11 @@ body{margin:0;padding:16px;background:var(--color-bg);color:var(--color-fg);font
     title: 'Walkthrough data',
     description: 'How far SSH/Telnet bots got (funnel), real sessions to replay with a note per command, and attack numbers per port for the port on/off simulator.',
     inputs: ['story'],
-    fn: (rows) => rows,
+    // the dashboard hands nested lists over as JSON text, so turn them back into lists here
+    fn: (rows) => rows.map((r) => {
+      const list = (v) => (Array.isArray(v) ? v : typeof v === 'string' && v.trim().startsWith('[') ? JSON.parse(v) : []);
+      return r.kind === 'replay' ? {...r, cmds: list(r.cmds)} : r.kind === 'port' ? {...r, families: list(r.families)} : r;
+    }),
   });
   const wkRows = () => { const d = dash.data('story_rows'); return d.status === 'ok' ? d.data : []; };
   const wkL = (th, en) => window.HP.L(th, en);
@@ -777,103 +781,101 @@ body{margin:0;padding:16px;background:var(--color-bg);color:var(--color-fg);font
     el.replaceChildren(...nodes);
   });
 
-  // Session replay. The runtime may call this draw again at any time (language switch, data refresh),
-  // so the player is built once per element and later calls only relabel it; playback is never reset by a redraw.
-  dash.draw('wk-replay', (el) => {
-    const reps = wkRows().filter((r) => r.kind === 'replay');
-    const sig = reps.map((r) => r.sid).join(',');
-    if (el.__wk && el.__wk.sig === sig) { el.__wk.relabel(); return; }
-    if (el.__wk) el.__wk.stop();
-    if (!reps.length) { el.replaceChildren(); el.__wk = null; return; }
-    const st = {sig, pick: 0, mode: 'step', idx: 0, playing: false, timer: null, typer: null, played: false};
-    el.__wk = st;
-
-    const picks = wkMk('div', 'wk-picks');
-    const term = wkMk('div', 'wk-term'), head = wkMk('div', 'wk-term-h'), screen = wkMk('div', 'wk-screen'), prog = wkMk('div', 'wk-prog'), progI = wkMk('i');
-    prog.append(progI); term.append(head, screen, prog);
-    const now = wkMk('div', 'wk-now');
-    const ctrl = wkMk('div', 'wk-ctrl');
-    const bPlay = wkMk('button', 'pri'); bPlay.type = 'button';
-    const bRe = wkMk('button', 'sec'); bRe.type = 'button';
-    const seg = wkMk('div', 'wk-seg'); const mStep = wkMk('button'); const mReal = wkMk('button'); mStep.type = mReal.type = 'button'; seg.append(mStep, mReal);
-    ctrl.append(bPlay, bRe, seg);
-    const meta = wkMk('p', 'wk-meta');
-    el.replaceChildren(picks, term, now, ctrl, meta);
-
-    const cur = () => reps[st.pick];
-    const clearT = () => { clearTimeout(st.timer); clearTimeout(st.typer); st.timer = st.typer = null; };
-    const setNow = () => {
-      const r = cur(), c = r.cmds[Math.max(0, st.idx - 1)];
-      now.replaceChildren();
-      if (st.idx === 0) { now.append(wkMk('span', 'lbl', wkL('พร้อมเล่น', 'Ready')), wkMk('b', '', wkL(`กด ▶ เพื่อดูบอทพิมพ์ ${r.cmds.length} คำสั่ง`, `Press ▶ to watch ${r.cmds.length} commands`))); return; }
-      const done = st.idx >= r.cmds.length && !st.playing;
-      now.append(wkMk('span', 'lbl', done ? wkL('จบแล้ว', 'Done') : wkL('ตอนนี้บอท', 'Now')),
-        wkMk('b', '', done ? wkL(`${r.cmds.length} คำสั่ง ใช้เวลาจริงแค่ ${r.dur} วินาที`, `${r.cmds.length} commands in just ${r.dur} s of real time`) : (c[2] ? wkL(c[2], c[3]) : '…')));
+  // Session replay. Playback state lives on window, not on the element: the dashboard may swap or re-mount the
+  // element (data loads, width changes, language switch), and each new element picks up where the last one was.
+  const WK = window.__wkReplay || (window.__wkReplay = {pick: 0, mode: 'step', idx: 0, playing: false, played: false, timer: null, typer: null, ui: null, sig: ''});
+  const wkReps = () => wkRows().filter((r) => r.kind === 'replay');
+  const wkCur = () => wkReps()[WK.pick] || wkReps()[0];
+  const wkClear = () => { clearTimeout(WK.timer); clearTimeout(WK.typer); WK.timer = WK.typer = null; };
+  const wkLine = (ts, text, sys) => { const u = WK.ui; if (!u) return null; const l = wkMk('div', 'wk-line' + (sys ? ' sys' : '')); l.append(wkMk('span', 'ts', ts), wkMk('span', 'cmd', text)); u.screen.append(l); u.screen.scrollTop = u.screen.scrollHeight; return l; };
+  function wkPaint() {
+    const u = WK.ui, r = wkCur(); if (!u || !r) return;
+    const reps = wkReps();
+    u.picks.replaceChildren(...reps.map((x, i) => { const b = wkMk('button', '', wkL(x.title, x.title_en)); b.type = 'button'; b.setAttribute('aria-pressed', String(i === WK.pick)); b.addEventListener('click', () => { WK.pick = i; wkReset(); wkPaint(); wkPlay(); }); return b; }));
+    u.head.replaceChildren();
+    const dots = wkMk('span', 'wk-dots'); dots.append(wkMk('i'), wkMk('i'), wkMk('i'));
+    const info = wkMk('span', 'info'); info.append(document.createTextNode(`${r.proto.toUpperCase()} · login `), wkMk('code', '', `${r.user || '(blank)'} / ${r.pw || '(blank)'}`));
+    u.clock = wkMk('span', 'wk-clock'); u.head.append(dots, info, u.clock);
+    u.screen.replaceChildren();
+    wkLine('', `${r.proto} · login ${r.user || '(blank)'} / ${r.pw || '(blank)'} ✓`, true);
+    r.cmds.slice(0, WK.idx).forEach((c) => wkLine(`${c[0].toFixed(1)}s`, c[1]));
+    wkLabels();
+  }
+  function wkLabels() {
+    const u = WK.ui, r = wkCur(); if (!u || !r) return;
+    const c = r.cmds[Math.max(0, WK.idx - 1)];
+    u.clock.textContent = `${WK.idx ? c[0].toFixed(1) : '0.0'} / ${r.dur} s`;
+    u.progI.style.width = `${100 * WK.idx / r.cmds.length}%`;
+    u.play.textContent = WK.playing ? wkL('⏸ หยุด', '⏸ Pause') : (WK.idx > 0 && WK.idx < r.cmds.length ? wkL('▶ เล่นต่อ', '▶ Resume') : wkL('▶ เล่น', '▶ Play'));
+    u.re.textContent = wkL('↺ เริ่มใหม่', '↺ Restart');
+    u.mStep.textContent = wkL('ทีละขั้น', 'Step by step'); u.mReal.textContent = wkL('ความเร็วจริง', 'Real speed');
+    u.mStep.setAttribute('aria-pressed', String(WK.mode === 'step')); u.mReal.setAttribute('aria-pressed', String(WK.mode === 'real'));
+    u.meta.textContent = wkL(`กลุ่ม ${r.family} · ${r.cmds.length} คำสั่ง · เวลาจริง ${r.dur} วินาที · ${r.start}`, `family ${r.family} · ${r.cmds.length} commands · ${r.dur} s real time · ${r.start}`);
+    u.now.replaceChildren();
+    if (WK.idx === 0) { u.now.append(wkMk('span', 'lbl', wkL('พร้อมเล่น', 'Ready')), wkMk('b', '', wkL(`กด ▶ เพื่อดูบอทพิมพ์ ${r.cmds.length} คำสั่ง`, `Press ▶ to watch ${r.cmds.length} commands`))); return; }
+    const done = WK.idx >= r.cmds.length && !WK.playing;
+    u.now.append(wkMk('span', 'lbl', done ? wkL('จบแล้ว', 'Done') : wkL('ตอนนี้บอท', 'Now')),
+      wkMk('b', '', done ? wkL(`${r.cmds.length} คำสั่ง ใช้เวลาจริงแค่ ${r.dur} วินาที`, `${r.cmds.length} commands in just ${r.dur} s of real time`) : (c[2] ? wkL(c[2], c[3]) : '…')));
+  }
+  function wkReset() { wkClear(); WK.playing = false; WK.idx = 0; }
+  function wkStep() {
+    const r = wkCur(); if (!r) return;
+    if (!WK.ui) { WK.timer = setTimeout(wkStep, 200); return; }          // element is being swapped: wait for the new one
+    if (WK.idx >= r.cmds.length) { WK.playing = false; wkLabels(); return; }
+    const c = r.cmds[WK.idx]; WK.idx++;
+    const l = wkLine(`${c[0].toFixed(1)}s`, ''); const span = l.querySelector('.cmd'); const caret = wkMk('span', 'wk-cursor');
+    wkLabels();
+    const text = c[1], slow = WK.mode === 'step', per = slow ? Math.max(1, Math.ceil(text.length / 40)) : text.length;
+    let k = 0;
+    const type = () => {
+      k = Math.min(text.length, k + per); span.textContent = text.slice(0, k); span.append(caret);
+      if (WK.ui) WK.ui.screen.scrollTop = WK.ui.screen.scrollHeight;
+      if (k < text.length) { WK.typer = setTimeout(type, 22); return; }
+      if (!span.isConnected && WK.ui) span.closest && wkPaint();          // typed into a swapped-out element: repaint
+      if (!WK.playing) return;
+      const next = r.cmds[WK.idx], wait = !next ? 0 : (slow ? 650 : Math.max(0, (next[0] - c[0]) * 1000));
+      WK.timer = setTimeout(() => { caret.remove(); wkStep(); }, wait);
     };
-    const relabel = () => {
-      picks.querySelectorAll('button').forEach((b, i) => { b.textContent = wkL(reps[i].title, reps[i].title_en); });
-      bPlay.textContent = st.playing ? wkL('⏸ หยุด', '⏸ Pause') : (st.idx > 0 && st.idx < cur().cmds.length ? wkL('▶ เล่นต่อ', '▶ Resume') : wkL('▶ เล่น', '▶ Play'));
-      bRe.textContent = wkL('↺ เริ่มใหม่', '↺ Restart');
-      mStep.textContent = wkL('ทีละขั้น', 'Step by step'); mReal.textContent = wkL('ความเร็วจริง', 'Real speed');
-      mStep.setAttribute('aria-pressed', String(st.mode === 'step')); mReal.setAttribute('aria-pressed', String(st.mode === 'real'));
-      const r = cur();
-      meta.textContent = wkL(`กลุ่ม ${r.family} · ${r.cmds.length} คำสั่ง · เวลาจริง ${r.dur} วินาที · ${r.start}`, `family ${r.family} · ${r.cmds.length} commands · ${r.dur} s real time · ${r.start}`);
-      const info = head.querySelector('.info'); if (info) info.firstChild.textContent = `${r.proto.toUpperCase()} · login `;
-      setNow();
-    };
-    st.relabel = relabel;
-    const line = (ts, text, sys) => { const l = wkMk('div', 'wk-line' + (sys ? ' sys' : '')); l.append(wkMk('span', 'ts', ts), wkMk('span', 'cmd', text)); screen.append(l); screen.scrollTop = screen.scrollHeight; return l; };
-    const clock = () => { const r = cur(), c = r.cmds[Math.max(0, st.idx - 1)]; head.querySelector('.wk-clock').textContent = `${st.idx ? c[0].toFixed(1) : '0.0'} / ${r.dur} s`; progI.style.width = `${100 * st.idx / r.cmds.length}%`; };
-    const reset = () => {
-      clearT(); st.playing = false; st.idx = 0;
-      const r = cur();
-      head.replaceChildren();
-      const dots = wkMk('span', 'wk-dots'); dots.append(wkMk('i'), wkMk('i'), wkMk('i'));
-      const info = wkMk('span', 'info'); info.append(document.createTextNode(`${r.proto.toUpperCase()} · login `), wkMk('code', '', `${r.user || '(blank)'} / ${r.pw || '(blank)'}`));
-      head.append(dots, info, wkMk('span', 'wk-clock'));
-      screen.replaceChildren();
-      line('', `${r.proto} · login ${r.user || '(blank)'} / ${r.pw || '(blank)'} ✓`, true);
-      clock(); relabel();
-    };
-    const step = () => {
-      const r = cur();
-      if (st.idx >= r.cmds.length) { st.playing = false; clock(); relabel(); return; }
-      const c = r.cmds[st.idx]; st.idx++;
-      const l = line(`${c[0].toFixed(1)}s`, ''); const span = l.querySelector('.cmd'); const caret = wkMk('span', 'wk-cursor');
-      clock(); setNow();
-      const text = c[1], slow = st.mode === 'step';
-      const per = slow ? Math.max(1, Math.ceil(text.length / 40)) : text.length;   // chars per tick
-      let k = 0;
-      const type = () => {
-        k = Math.min(text.length, k + per); span.textContent = text.slice(0, k); span.append(caret); screen.scrollTop = screen.scrollHeight;
-        if (k < text.length) { st.typer = setTimeout(type, 22); return; }
-        if (!st.playing) return;
-        const next = r.cmds[st.idx];
-        const wait = !next ? 0 : (slow ? 650 : Math.max(0, (next[0] - c[0]) * 1000));
-        st.timer = setTimeout(() => { caret.remove(); step(); }, wait);
-      };
-      type();
-    };
-    const play = () => {
-      if (st.playing) { st.playing = false; clearT(); relabel(); return; }
-      if (st.idx >= cur().cmds.length) reset();
-      st.playing = true; st.played = true; relabel();
-      if (wkReduce) { while (st.idx < cur().cmds.length) { const c = cur().cmds[st.idx++]; line(`${c[0].toFixed(1)}s`, c[1]); } st.playing = false; clock(); relabel(); return; }
-      step();
-    };
-    st.stop = () => { st.playing = false; clearT(); };
-    bPlay.onclick = play;
-    bRe.onclick = () => { reset(); play(); };
-    mStep.onclick = () => { st.mode = 'step'; relabel(); };
-    mReal.onclick = () => { st.mode = 'real'; relabel(); };
-    reps.forEach((r, i) => { const b = wkMk('button'); b.type = 'button'; b.setAttribute('aria-pressed', String(i === 0));
-      b.onclick = () => { st.pick = i; picks.querySelectorAll('button').forEach((x, j) => x.setAttribute('aria-pressed', String(j === i))); reset(); play(); };
-      picks.append(b); });
-    reset();
-    if ('IntersectionObserver' in window && !wkReduce) {
-      const io = new IntersectionObserver((es) => { if (es.some((e) => e.isIntersecting) && !st.played) { io.disconnect(); play(); } }, {threshold: 0.6});
-      io.observe(term);
-    }
+    type();
+  }
+  function wkPlay() {
+    const r = wkCur(); if (!r) return;
+    if (WK.playing) { WK.playing = false; wkClear(); wkLabels(); return; }
+    if (WK.idx >= r.cmds.length) { wkReset(); wkPaint(); }
+    WK.playing = true; WK.played = true; wkLabels();
+    if (wkReduce) { while (WK.idx < r.cmds.length) { const c = r.cmds[WK.idx++]; wkLine(`${c[0].toFixed(1)}s`, c[1]); } WK.playing = false; wkLabels(); return; }
+    wkStep();
+  }
+  dash.draw('wk-replay', {
+    mount(el) {
+      const picks = wkMk('div', 'wk-picks');
+      const term = wkMk('div', 'wk-term'), head = wkMk('div', 'wk-term-h'), screen = wkMk('div', 'wk-screen'), prog = wkMk('div', 'wk-prog'), progI = wkMk('i');
+      prog.append(progI); term.append(head, screen, prog);
+      const now = wkMk('div', 'wk-now'), ctrl = wkMk('div', 'wk-ctrl');
+      const play = wkMk('button', 'pri'), re = wkMk('button', 'sec'), seg = wkMk('div', 'wk-seg'), mStep = wkMk('button'), mReal = wkMk('button');
+      [play, re, mStep, mReal].forEach((b) => { b.type = 'button'; });
+      seg.append(mStep, mReal); ctrl.append(play, re, seg);
+      const meta = wkMk('p', 'wk-meta');
+      el.append(picks, term, now, ctrl, meta);
+      play.addEventListener('click', () => wkPlay());
+      re.addEventListener('click', () => { wkReset(); wkPaint(); wkPlay(); });
+      mStep.addEventListener('click', () => { WK.mode = 'step'; wkLabels(); });
+      mReal.addEventListener('click', () => { WK.mode = 'real'; wkLabels(); });
+      const made = {el, picks, term, head, screen, progI, now, play, re, mStep, mReal, meta, clock: null, io: null};
+      if ('IntersectionObserver' in window && !wkReduce) {
+        made.io = new IntersectionObserver((es) => { if (es.some((e) => e.isIntersecting) && !WK.played && wkCur()) { made.io.disconnect(); wkPlay(); } }, {threshold: 0.5});
+        made.io.observe(term);
+      }
+      return made;
+    },
+    update(el, made) {
+      const sig = wkReps().map((r) => r.sid).join(',');
+      if (!sig) { WK.ui = made; return; }
+      if (sig !== WK.sig) { WK.sig = sig; if (WK.pick >= wkReps().length) WK.pick = 0; wkReset(); }
+      if (WK.ui !== made) { WK.ui = made; wkPaint(); } else wkLabels();
+      if (WK.playing && !WK.timer && !WK.typer) wkStep();
+    },
+    unmount(el, made) { if (made && made.io) made.io.disconnect(); if (WK.ui === made) WK.ui = null; },
   });
 
   const wkPorts = {off: new Set()};
