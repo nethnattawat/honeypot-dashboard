@@ -148,6 +148,9 @@ body{margin:0;padding:16px;background:var(--color-bg);color:var(--color-fg);font
   .hp-tip-h { color: var(--ap-fg2); font-weight: 600; }
 
   /* tables */
+  #ips td code { white-space: nowrap; }
+  #ips th:first-child, #ips td:first-child { width: 1%; padding-left: .25rem; padding-right: .25rem; color: var(--ap-fg2); }
+  @media (max-width: 480px) { #ips td code { font-size: .78rem; } #ips th, #ips td { padding-left: .3rem; padding-right: .3rem; } }
   .hp-tablebox { max-height: 23rem; overflow: auto; margin: .25rem -.5rem 0; padding: 0 .5rem; scrollbar-width: thin; }
   .hp-table { width: 100%; border-collapse: collapse; font-size: .8125rem; }
   .hp-table th { position: sticky; top: 0; background: var(--ap-card); text-align: left; font-weight: 600; font-size: .75rem; color: var(--ap-fg2); padding: .5rem .625rem; border-bottom: 1px solid var(--ap-line); z-index: 1; }
@@ -541,10 +544,10 @@ body{margin:0;padding:16px;background:var(--color-bg);color:var(--color-fg);font
       </article>
       <article class="hp-card" id="ips">
         <h2><span data-l="th">IP ที่เข้ามาบ่อยที่สุด</span><span data-l="en">Busiest source IPs</span></h2>
-        <p class="hp-note"><span data-l="th">รวมจาก 10 อันดับแรกของแต่ละวัน</span><span data-l="en">Added up from each day’s top 10</span></p>
+        <p class="hp-note"><span data-l="th">100 อันดับแรก นับรวมทุกวัน</span><span data-l="en">Top 100, counted over all days</span></p>
         <div class="hp-tablebox">
           <table class="hp-table" data-source="ips_all" data-row-key="item">
-            <thead><tr><th data-field="item"><span data-l="th">IP ต้นทาง</span><span data-l="en">source IP</span></th><th class="num" data-field="n"><span data-l="th">การเชื่อมต่อ</span><span data-l="en">connections</span></th><th class="num" data-field="days"><span data-l="th">วัน</span><span data-l="en">days</span></th></tr></thead>
+            <thead><tr><th class="num" data-field="rank">#</th><th data-field="item"><span data-l="th">IP ต้นทาง</span><span data-l="en">source IP</span></th><th class="num" data-field="n"><span data-l="th">การเชื่อมต่อ</span><span data-l="en">connections</span></th><th class="num" data-field="days"><span data-l="th">วัน</span><span data-l="en">days</span></th></tr></thead>
             <tbody data-draw="ips"></tbody>
           </table>
         </div>
@@ -1073,16 +1076,18 @@ body{margin:0;padding:16px;background:var(--color-bg);color:var(--color-fg);font
 
   dash.calc('ips_all', {
     title: 'Busiest source IPs',
-    description: 'Each day’s top 10 source IPs, added up over all days.',
+    description: 'Top 100 source IPs by connections, counted over all days (falls back to each day’s top 10 added up).',
     inputs: ['honeypot'],
     fn: (honeypot) => {
+      const tot = honeypot.filter((r) => r.kind === 'ip_total');
+      if (tot.length) return tot.map((r) => ({item: r.item, n: Number(r.n), days: Number(r.extra)})).sort((a, b) => b.n - a.n).slice(0, 100).map((o, i) => ({...o, rank: i + 1}));
       const m = new Map();
       for (const r of honeypot) {
         if (r.kind !== 'ip') continue;
         const o = m.get(r.item) ?? {item: r.item, n: 0, d: new Set()};
         o.n += Number(r.n); o.d.add(r.date); m.set(r.item, o);
       }
-      return [...m.values()].map((o) => ({item: o.item, n: o.n, days: o.d.size})).sort((a, b) => b.n - a.n).slice(0, 25);
+      return [...m.values()].map((o) => ({item: o.item, n: o.n, days: o.d.size})).sort((a, b) => b.n - a.n).slice(0, 25).map((o, i) => ({...o, rank: i + 1}));
     },
   });
 
@@ -1178,7 +1183,7 @@ body{margin:0;padding:16px;background:var(--color-bg);color:var(--color-fg);font
     return rows.length;
   };
   dash.draw('creds', (tb) => fillTable(tb, 'creds_all', [{f: 'item', code: true}, {f: 'n', num: true}, {f: 'days', num: true}]));
-  dash.draw('ips', (tb) => fillTable(tb, 'ips_all', [{f: 'item', code: true}, {f: 'n', num: true}, {f: 'days', num: true}]));
+  dash.draw('ips', (tb) => fillTable(tb, 'ips_all', [{f: 'rank', num: true}, {f: 'item', code: true}, {f: 'n', num: true}, {f: 'days', num: true}]));
   dash.draw('cmds', (tb) => fillTable(tb, 'cmds_all', [{f: 'item', code: true}, {f: L('meaning', 'meaning_en')}, {f: 'n', num: true}]));
   dash.draw('http', (tb) => fillTable(tb, 'http_all', [{f: 'port'}, {f: 'item', code: true}, {f: 'n', num: true}]));
   dash.draw('dl', (tb) => fillTable(tb, 'downloads_all', [{f: 'item', code: true}, {f: 'sha', code: true}, {f: 'first'}]));
