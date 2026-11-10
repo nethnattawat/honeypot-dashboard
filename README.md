@@ -11,4 +11,4 @@ What internet bots do to a home ONU/router that leaves **Telnet (23), SSH (22), 
 - Countries are approximated from the source IP (MaxMind GeoLite2 via geoip2fast); VPS and proxy exits show the hosting country.
 - URLs and IPs inside attacker commands are defanged (`hxxp`, `[.]`). Nothing captured here should be downloaded or run.
 
-`index.html` is a static build (`build_site.py`) of the dashboard; `data/*.json` are the four datasets it loads.
+`index.html` is a static build (`build_site.py`) of the dashboard; `data/*.json` are the five datasets it loads.

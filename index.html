@@ -34,7 +34,7 @@ body{margin:0;padding:16px;background:var(--color-bg);color:var(--color-fg);font
     setLink() {},
     onData(fn) { onData.push(fn); },
   };
-  const names = ['honeypot', 'bots', 'geo', 'events'];
+  const names = ['honeypot', 'bots', 'geo', 'events', 'http'];
   const loaded = Promise.all(names.map((n) => fetch(`data/${n}.json`).then((r) => r.json()).then((j) => { DATA[n] = j.rows; })));
   document.addEventListener('DOMContentLoaded', () => loaded.then(() => { document.querySelector('.site-load')?.remove(); run(); })
     .catch((e) => { const m = document.querySelector('.site-load'); if (m) m.textContent = 'Could not load data: ' + e; }));
@@ -189,6 +189,23 @@ body{margin:0;padding:16px;background:var(--color-bg);color:var(--color-fg);font
   .hp-pick select option { background-color: var(--ap-card); color: var(--ap-fg); }
   @media (prefers-color-scheme: dark) { :root:not([data-theme="light"]) .hp-pick select { color-scheme: dark; } }
   :root[data-theme="dark"] .hp-pick select { color-scheme: dark; }
+  .hx-tiles { display: grid; gap: .75rem; grid-template-columns: repeat(auto-fit, minmax(min(100%, 12.5rem), 1fr)); margin: .5rem 0 .75rem; }
+  .hx-tile { display: grid; gap: .2rem; align-content: start; padding: 1rem 1.1rem; border-radius: 16px; background: var(--ap-fill); }
+  .hx-v { font-size: clamp(1.9rem, 3.4vw, 2.5rem); font-weight: 600; line-height: 1.1; letter-spacing: -.02em; font-variant-numeric: tabular-nums; }
+  .hx-tile.is-hot .hx-v { color: var(--ap-blue); }
+  .hx-chips { display: flex; flex-wrap: wrap; gap: .3rem; margin-top: .2rem; }
+  .hx-chips code { font-size: .75rem; padding: .15rem .5rem; border-radius: 999px; background: var(--ap-card); color: var(--ap-fg); }
+  #webports .hp-table { min-width: 44rem; } #webports .hp-table code { white-space: nowrap; }
+  .hx-h { margin: .75rem 0 0; font-size: 1rem; font-weight: 600; letter-spacing: -.01em; }
+  .hx-bars { list-style: none; margin: 0; padding: 0; display: grid; gap: .55rem; }
+  .hx-bars li { display: grid; grid-template-columns: minmax(0, 15rem) minmax(0, 1fr) 7.5rem; gap: .75rem; align-items: center; font-size: .875rem; }
+  .hx-bars .t { height: .55rem; border-radius: 999px; background: var(--ap-fill); overflow: hidden; }
+  .hx-bars .b { display: block; height: 100%; border-radius: inherit; background: var(--ap-gray); transform-origin: left; }
+  .hx-bars li.is-hot .b { background: var(--ap-blue); }
+  .hx-bars li.is-hot .l { font-weight: 600; }
+  .hx-bars .v { text-align: right; font-variant-numeric: tabular-nums; color: var(--ap-fg2); font-size: .8125rem; }
+  .hx-bars .v b { color: var(--ap-fg); font-weight: 600; }
+  @media (max-width: 40rem) { .hx-bars li { grid-template-columns: 1fr 6.5rem; } .hx-bars .t { grid-column: 1 / -1; grid-row: 2; } }
   .hp-src { font-size: .8125rem; color: var(--ap-fg2); margin: .25rem 0 0; }
 
   /* scroll reveal */
@@ -534,6 +551,27 @@ body{margin:0;padding:16px;background:var(--color-bg);color:var(--color-fg);font
       </div>
     </article>
 
+    <article class="hp-card" id="webports">
+      <h2><span data-l="th">พอร์ตเว็บและ TR-069 โดนอะไรบ้าง</span><span data-l="en">What hit the web and TR-069 ports</span></h2>
+      <p class="hp-note"><b data-draw="h-kpi" data-source="http_rows" data-key="requests">—</b><span data-l="th"> requests จาก </span><span data-l="en"> requests from </span><b data-draw="h-kpi" data-source="http_rows" data-key="ips">—</b><span data-l="th"> IP เข้าพอร์ต 80, 8080 และ 7547</span><span data-l="en"> IPs on ports 80, 8080 and 7547</span></p>
+      <div class="hx-tiles">
+        <div class="hx-tile is-hot"><span class="hp-tile-l"><span data-l="th">เจาะ ONU / router ตรง ๆ</span><span data-l="en">Direct ONU / router attacks</span></span><span class="hx-v" data-draw="h-kpi" data-source="http_rows" data-key="onu">—</span><span class="hp-tile-n"><span data-l="th">จาก </span><span data-l="en">from </span><b data-draw="h-kpi" data-source="http_rows" data-key="onu_ips">—</b><span data-l="th"> IP · ครั้งแรก </span><span data-l="en"> IPs · first </span><span data-draw="h-kpi" data-source="http_rows" data-key="onu_first">—</span></span></div>
+        <div class="hx-tile is-hot"><span class="hp-tile-l"><span data-l="th">บัญชี default ของ ONU ที่บอทลอง</span><span data-l="en">Default ONU logins tried</span></span><span class="hx-v" data-draw="h-kpi" data-source="http_rows" data-key="creds">—</span><span class="hp-tile-n" data-draw="h-creds" data-source="http_rows"></span></div>
+        <div class="hx-tile"><span class="hp-tile-l"><span data-l="th">ลองใช้เครื่องเป็น proxy</span><span data-l="en">Tried to use it as a proxy</span></span><span class="hx-v" data-draw="h-kpi" data-source="http_rows" data-key="proxy">—</span><span class="hp-tile-n"><span data-l="th">ส่วนใหญ่ทางพอร์ต 8080 (</span><span data-l="en">mostly on port 8080 (</span><b data-draw="h-kpi" data-source="http_rows" data-key="proxy_8080">—</b>)</span></div>
+        <div class="hx-tile"><span class="hp-tile-l"><span data-l="th">คำสั่งโจมตีแบบ TR-069</span><span data-l="en">TR-069 attack commands</span></span><span class="hx-v" data-draw="h-kpi" data-source="http_rows" data-key="tr069_attack">—</span><span class="hp-tile-n"><span data-l="th">7547 โดนสแกน </span><span data-l="en">7547 was scanned </span><b data-draw="h-kpi" data-source="http_rows" data-key="tr069">—</b><span data-l="th"> ครั้ง แต่ไม่มีคำสั่ง TR-069</span><span data-l="en"> times, but no TR-069 commands</span></span></div>
+      </div>
+      <h3 class="hx-h"><span data-l="th">บอทเข้ามาทำอะไร</span><span data-l="en">What the requests were for</span></h3>
+      <ul class="hx-bars" data-draw="h-cats" data-source="http_rows"></ul>
+      <h3 class="hx-h"><span data-l="th">ที่เล็ง ONU / router โดยตรง</span><span data-l="en">Aimed straight at ONUs / routers</span></h3>
+      <div class="hp-tablebox">
+        <table class="hp-table">
+          <thead><tr><th><span data-l="th">เป้าหมาย</span><span data-l="en">target</span></th><th><span data-l="th">บอททำอะไร</span><span data-l="en">what the bot did</span></th><th class="num"><span data-l="th">ครั้ง</span><span data-l="en">requests</span></th><th class="num">IP</th><th><span data-l="th">ล่าสุด</span><span data-l="en">last</span></th></tr></thead>
+          <tbody data-draw="h-onu" data-source="http_rows"></tbody>
+        </table>
+      </div>
+      <p class="hp-note"><span data-l="th">ชื่อ CVE จับคู่จากรูปแบบ request · honeypot ไม่ได้ตอบแบบอุปกรณ์จริง จึงไม่รู้ว่าถ้าเป็นเครื่องจริงจะเจาะสำเร็จไหม</span><span data-l="en">CVE names are matched from the request shape · the honeypot does not answer like a real device, so success on a real one is unknown</span></p>
+    </article>
+
     <article class="hp-card" id="vendor">
       <h2><span data-l="th">สิ่งที่ vendor ต้องเช็คใน ONU</span><span data-l="en">What vendors must check in the ONU</span></h2>
       <p class="hp-note"><span data-l="th">แต่ละแถวคือเทคนิคที่บอทใช้กับ honeypot จริง ซึ่งตั้งค่าเหมือน ONU ที่เปิด management ฝั่ง WAN · ตัวเลขคือจำนวน session ที่ใช้เทคนิคนั้น</span><span data-l="en">Each row is a technique bots really used on the honeypot, which is set up like an ONU with WAN-side management open · the number is the sessions that used it</span></p>
@@ -550,7 +588,10 @@ body{margin:0;padding:16px;background:var(--color-bg);color:var(--color-fg);font
             <tr><td class="wrap"><span data-l="th">ฆ่า process ที่ไฟล์ตัวเองถูกลบ (บอทตัวอื่น) เพื่อยึดเครื่อง</span><span data-l="en">Killed processes whose own file was deleted (other bots) to take over the device</span></td><td class="num"><b data-draw="tech" data-source="bot_tech" data-field="sessions" data-where="tag=KILLER">—</b></td><td class="wrap"><span data-l="th">ใช้เป็นตัวตรวจเครื่องที่โดนแล้ว: <code>ls -l /proc/*/exe | grep deleted</code> ต้องไม่มีผลลัพธ์</span><span data-l="en">Use it to spot infected units: <code>ls -l /proc/*/exe | grep deleted</code> must return nothing</span></td><td></td></tr>
             <tr><td class="wrap"><span data-l="th">เปลี่ยนรหัส root ด้วย <code>passwd</code> หลังยึดได้ เพื่อล็อกบอทอื่นและเจ้าของออก</span><span data-l="en">Changed the root password with <code>passwd</code> after taking over, locking out other bots and the owner</span></td><td class="num"><b data-draw="tech" data-source="bot_tech" data-field="sessions" data-where="tag=PASSWD-LOCK">—</b></td><td class="wrap"><span data-l="th">บัญชีที่ใช้ remote ไม่ควรเปลี่ยนรหัส root ได้ ต้องมีทางกู้คืน/รีเซ็ตจาก ACS หรือปุ่ม reset และแจ้งเตือนเมื่อรหัสถูกเปลี่ยน</span><span data-l="en">Remote accounts should not be able to change the root password; there must be a recovery/reset path from the ACS or the reset button, and an alert when the password changes</span></td><td>CWE-269</td></tr>
             <tr><td class="wrap"><span data-l="th">ฝังตัวให้กลับมาเข้าได้อีก เช่น เขียน SSH key ลง <code>~/.ssh/authorized_keys</code> แล้ว <code>chattr</code> กันลบ หรือแก้ crontab / rc.local</span><span data-l="en">Planted a way back in, e.g. wrote an SSH key to <code>~/.ssh/authorized_keys</code> and protected it with <code>chattr</code>, or edited crontab / rc.local</span></td><td class="num"><b data-draw="tech" data-source="bot_tech" data-field="sessions" data-where="tag=PERSIST">—</b></td><td class="wrap"><span data-l="th">root filesystem ของ ONU ควรเป็น read-only, ไม่ควรมีไฟล์ authorized_keys หรือ crontab ที่ผู้ใช้ remote เขียนได้ และ factory reset ต้องล้างทุกอย่างที่ถูกเขียนเพิ่ม</span><span data-l="en">The ONU root filesystem should be read-only, with no authorized_keys or crontab a remote user can write, and a factory reset must wipe everything that was added</span></td><td>CWE-732</td></tr>
-            <tr><td class="wrap"><span data-l="th">ยิง TR-069 connection request (พอร์ต 7547)</span><span data-l="en">Sent TR-069 connection requests (port 7547)</span></td><td class="num"><b data-draw="tech" data-source="bot_tech" data-field="sessions" data-where="tag=TR069">—</b></td><td class="wrap"><span data-l="th">พอร์ต 7547 รับเฉพาะ IP ของ ACS และต้องยืนยันตัวตนทุกครั้ง</span><span data-l="en">Port 7547 accepts only the ACS IP and must authenticate every time</span></td><td>TR-069</td></tr>
+            <tr><td class="wrap"><span data-l="th">ส่ง request เข้าพอร์ต TR-069 (7547) · เป็นการสแกน ยังไม่พบคำสั่ง TR-069</span><span data-l="en">Sent requests to the TR-069 port (7547) · scanning, no TR-069 commands seen yet</span></td><td class="num"><b data-draw="h-kpi" data-source="http_rows" data-key="tr069">—</b></td><td class="wrap"><span data-l="th">พอร์ต 7547 รับเฉพาะ IP ของ ACS และต้องยืนยันตัวตนทุกครั้ง</span><span data-l="en">Port 7547 accepts only the ACS IP and must authenticate every time</span></td><td>TR-069</td></tr>
+            <tr><td class="wrap"><span data-l="th">เดารหัสหน้าเว็บ ONU (<code>/boaform/admin/formLogin</code>) ด้วยบัญชี default</span><span data-l="en">Guessed the ONU web login (<code>/boaform/admin/formLogin</code>) with default accounts</span></td><td class="num"><b data-draw="h-onu-n" data-source="http_rows" data-key="boaform">—</b></td><td class="wrap"><span data-l="th">หน้าเว็บจัดการเข้าจาก WAN ไม่ได้ และไม่มีบัญชี user, adminisp, ec8, admin ที่ใช้รหัสเดียวกับชื่อ</span><span data-l="en">The management web is unreachable from the WAN, and no user, adminisp, ec8 or admin account uses its own name as password</span></td><td>Web UI</td></tr>
+            <tr><td class="wrap"><span data-l="th">ฝังคำสั่งในช่อง ping ของหน้า diag (<code>GponForm/diag_Form</code>)</span><span data-l="en">Injected commands into the diag ping field (<code>GponForm/diag_Form</code>)</span></td><td class="num"><b data-draw="h-onu-n" data-source="http_rows" data-key="gpon">—</b></td><td class="wrap"><span data-l="th">ช่อง ping / traceroute รับได้แค่ IP หรือชื่อโฮสต์ ตัด <code>; ` $( |</code> ทิ้ง และต้อง login ก่อนเสมอ</span><span data-l="en">Ping / traceroute fields accept only an IP or hostname, strip <code>; ` $( |</code>, and always require login</span></td><td>Web UI</td></tr>
+            <tr><td class="wrap"><span data-l="th">ลองใช้พอร์ต 8080 เป็น proxy ออก internet</span><span data-l="en">Tried to use port 8080 as a proxy to the internet</span></td><td class="num"><b data-draw="h-kpi" data-source="http_rows" data-key="proxy_8080">—</b></td><td class="wrap"><span data-l="th">ไม่มี proxy หรือ port forward เปิดฝั่ง WAN โดยไม่ได้ตั้งใจ</span><span data-l="en">No proxy or port forward is open on the WAN side by accident</span></td><td>Web UI</td></tr>
           </tbody>
         </table>
       </div>
@@ -916,6 +957,12 @@ body{margin:0;padding:16px;background:var(--color-bg);color:var(--color-fg);font
     inputs: ['bots'],
     fn: (bots) => bots.filter((r) => r.kind === 'tech').map((r) => ({tag: r.tag, sessions: Number(r.sessions)})),
   });
+  dash.calc('http_rows', {
+    title: 'Web and TR-069 requests',
+    description: 'What bots sent to ports 80, 8080 and 7547: headline numbers, what each request was for, attacks aimed at ONUs/routers and default ONU logins tried.',
+    inputs: ['http'],
+    fn: (rows) => rows,
+  });
   dash.calc('bot_kpis', {
     title: 'Bot headline figures',
     description: 'Families that typed commands, and families that kill other bots.',
@@ -938,6 +985,41 @@ body{margin:0;padding:16px;background:var(--color-bg);color:var(--color-fg);font
   dash.draw('b-fam', one('bot_kpis', 'families'));
   dash.draw('b-kill', one('bot_kpis', 'killers'));
   dash.draw('b-mirai', one('bot_kpis', 'mirai'));
+
+  const hRows = () => { const d = dash.data('http_rows'); return d.status === 'ok' ? d.data : []; };
+  const hKpi = (k) => { const r = hRows().find((x) => x.kind === 'kpi' && x.key === k); return r ? r.n : null; };
+  const hDate = (v) => { const [d, t] = String(v).split(' '); const [y, m, dd] = d.split('-').map(Number);
+    const th = ['ม.ค.', 'ก.พ.', 'มี.ค.', 'เม.ย.', 'พ.ค.', 'มิ.ย.', 'ก.ค.', 'ส.ค.', 'ก.ย.', 'ต.ค.', 'พ.ย.', 'ธ.ค.'], en = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
+    return window.HP.L(`${dd} ${th[m - 1]}${t ? ' ' + t : ''}`, `${dd} ${en[m - 1]}${t ? ' ' + t : ''}`); };
+  dash.draw('h-kpi', (el) => { const v = hKpi(el.dataset.key); if (v == null) el.textContent = '—'; else if (typeof v === 'number') window.HP.num(el, v); else el.textContent = hDate(v); });
+  dash.draw('h-onu-n', (el) => { const r = hRows().find((x) => x.kind === 'onu' && x.key === el.dataset.key); el.textContent = r ? fmtB(r.n) : '0'; });
+  dash.draw('h-creds', (el) => {
+    const c = hRows().filter((x) => x.kind === 'cred');
+    el.replaceChildren(Object.assign(document.createElement('span'), {className: 'hx-chips'}));
+    c.forEach((r) => el.firstChild.append(Object.assign(document.createElement('code'), {textContent: `${r.key} ×${r.n}`})));
+  });
+  dash.draw('h-cats', (el) => {
+    const c = hRows().filter((x) => x.kind === 'cat' && x.n > 0).sort((a, b) => b.n - a.n);
+    const max = Math.max(1, ...c.map((r) => r.n)), hot = new Set(['onu', 'webapp', 'secret', 'proxy']);
+    el.replaceChildren(...c.map((r) => {
+      const li = document.createElement('li'); if (hot.has(r.key)) li.className = 'is-hot';
+      const l = Object.assign(document.createElement('span'), {className: 'l', textContent: window.HP.L(r.th, r.en)});
+      const t = Object.assign(document.createElement('span'), {className: 't'}); const b = Object.assign(document.createElement('span'), {className: 'b'});
+      b.style.width = `${Math.max(1.5, 100 * r.n / max)}%`; t.append(b);
+      const v = document.createElement('span'); v.className = 'v'; v.innerHTML = `<b>${fmtB(r.n)}</b> · ${fmtB(r.ips)} IP`;
+      li.append(l, t, v); return li;
+    }));
+  });
+  dash.draw('h-onu', (el) => {
+    const c = hRows().filter((x) => x.kind === 'onu').sort((a, b) => b.n - a.n);
+    el.replaceChildren(...c.map((r) => {
+      const tr = document.createElement('tr');
+      [[r.name, 'code'], [window.HP.L(r.th, r.en), 'wrap'], [fmtB(r.n), 'num'], [fmtB(r.ips), 'num'], [hDate(r.last), '']].forEach(([v, cls]) => {
+        const td = document.createElement('td'); if (cls === 'code') { const k = document.createElement('code'); k.textContent = v; td.append(k); } else { td.textContent = v; if (cls) td.className = cls; } tr.append(td);
+      });
+      return tr;
+    }));
+  });
 
   dash.draw('tech', (el) => {
     const d = dash.data('bot_tech');
