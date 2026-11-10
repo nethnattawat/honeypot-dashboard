@@ -6,9 +6,9 @@ What internet bots do to a home ONU/router that leaves **Telnet (23), SSH (22), 
 
 **Open the dashboard:** https://nethnattawat.github.io/honeypot-dashboard/
 
-- Four tabs: overview, attack map (replay of real events), bot behaviour + vendor checklist, and a system diagram. Thai / English toggle at the top right.
+- Five tabs: overview, attack map (replay of real events), bot behaviour + vendor checklist, an attack walkthrough (how far bots got, real sessions replayed, port on/off simulator) and a system diagram. Thai / English toggle at the top right.
 - Data snapshot: 2026-10-30 → **2026-11-10 16:06 (Bangkok)**. The team's own test IPs are left out of every count; the honeypot's own IP is masked.
 - Countries are approximated from the source IP (MaxMind GeoLite2 via geoip2fast); VPS and proxy exits show the hosting country.
 - URLs and IPs inside attacker commands are defanged (`hxxp`, `[.]`). Nothing captured here should be downloaded or run.
 
-`index.html` is a static build (`build_site.py`) of the dashboard; `data/*.json` are the five datasets it loads.
+`index.html` is a static build (`build_site.py`) of the dashboard; `data/*.json` are the six datasets it loads.

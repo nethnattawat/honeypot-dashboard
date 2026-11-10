@@ -43,7 +43,7 @@ body{margin:0;padding:16px;background:var(--color-bg);color:var(--color-fg);font
     setLink() {},
     onData(fn) { onData.push(fn); },
   };
-  const names = ['honeypot', 'bots', 'geo', 'events', 'http'];
+  const names = ['honeypot', 'bots', 'geo', 'events', 'http', 'story'];
   const loaded = Promise.all(names.map((n) => fetch(`data/${n}.json`).then((r) => r.json()).then((j) => { DATA[n] = j.rows; })));
   document.addEventListener('DOMContentLoaded', () => loaded.then(() => { document.querySelector('.site-load')?.remove(); run(); })
     .catch((e) => { const m = document.querySelector('.site-load'); if (m) m.textContent = 'Could not load data: ' + e; }));

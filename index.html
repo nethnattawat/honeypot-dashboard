@@ -34,7 +34,7 @@ body{margin:0;padding:16px;background:var(--color-bg);color:var(--color-fg);font
     setLink() {},
     onData(fn) { onData.push(fn); },
   };
-  const names = ['honeypot', 'bots', 'geo', 'events', 'http'];
+  const names = ['honeypot', 'bots', 'geo', 'events', 'http', 'story'];
   const loaded = Promise.all(names.map((n) => fetch(`data/${n}.json`).then((r) => r.json()).then((j) => { DATA[n] = j.rows; })));
   document.addEventListener('DOMContentLoaded', () => loaded.then(() => { document.querySelector('.site-load')?.remove(); run(); })
     .catch((e) => { const m = document.querySelector('.site-load'); if (m) m.textContent = 'Could not load data: ' + e; }));
@@ -365,6 +365,59 @@ body{margin:0;padding:16px;background:var(--color-bg);color:var(--color-fg);font
   @keyframes sys-run { to { stroke-dashoffset: -30; } }
   @keyframes sys-rec { 50% { opacity: .25; } }
 
+
+  /* walkthrough tab */
+  .wk-card { gap: .9rem; }
+  .wk-funnel { display: grid; gap: .35rem; justify-items: center; padding: .5rem 0; }
+  .wk-stage { width: 100%; display: grid; justify-items: center; gap: .3rem; }
+  .wk-bar { display: grid; place-items: center; min-height: 4.25rem; border-radius: 16px; background: var(--ap-fill); padding: .55rem 1rem; text-align: center; transition: width 1s var(--ap-ease); min-width: min(100%, 15rem); }
+  .wk-stage.is-hot .wk-bar { background: var(--ap-blue); color: #fff; }
+  .wk-bar .n { font-size: clamp(1.5rem, 3vw, 2.1rem); font-weight: 600; line-height: 1.1; letter-spacing: -.02em; font-variant-numeric: tabular-nums; }
+  .wk-bar .t { font-size: .8125rem; line-height: 1.35; opacity: .85; }
+  .wk-drop { font-size: .75rem; color: var(--ap-fg2); display: flex; align-items: center; gap: .4rem; }
+  .wk-drop::before { content: ""; width: 1px; height: .9rem; background: var(--ap-line); }
+  .wk-subs { display: flex; flex-wrap: wrap; justify-content: center; gap: .5rem; margin-top: .35rem; }
+  .wk-subs span { padding: .3rem .75rem; border-radius: 999px; background: color-mix(in srgb, var(--ap-blue) 12%, var(--ap-card)); font-size: .8125rem; }
+  .wk-subs b { font-variant-numeric: tabular-nums; margin-right: .3rem; }
+  .wk-picks { display: flex; flex-wrap: wrap; gap: .45rem; }
+  .wk-picks button { font: inherit; font-size: .8125rem; border: 0; border-radius: 999px; padding: .45rem .9rem; background: var(--ap-fill); color: var(--ap-fg); cursor: pointer; }
+  .wk-picks button[aria-pressed="true"] { background: var(--ap-fg); color: var(--ap-bg); }
+  .wk-term { border-radius: 16px; background: #0b0b0d; color: #e8e8ed; overflow: hidden; box-shadow: inset 0 0 0 1px rgba(255,255,255,.06); }
+  .wk-term-h { display: flex; flex-wrap: wrap; align-items: center; gap: .5rem 1rem; padding: .65rem 1rem; background: #1c1c1f; font-size: .75rem; color: #a1a1a6; }
+  .wk-dots { display: inline-flex; gap: .35rem; } .wk-dots i { width: .65rem; height: .65rem; border-radius: 50%; background: #3a3a3e; }
+  .wk-dots i:nth-child(1) { background: #ff5f57; } .wk-dots i:nth-child(2) { background: #febc2e; } .wk-dots i:nth-child(3) { background: #28c840; }
+  .wk-term-h code { color: #e8e8ed; }
+  .wk-clock { margin-left: auto; font-variant-numeric: tabular-nums; color: #e8e8ed; font-weight: 600; }
+  .wk-screen { font: .78rem/1.55 ui-monospace, SFMono-Regular, Menlo, Consolas, monospace; padding: .9rem 1rem 1.1rem; height: 21rem; overflow: auto; scroll-behavior: smooth; }
+  .wk-line { display: grid; grid-template-columns: 3.4rem minmax(0, 1fr); gap: .5rem; }
+  .wk-line .ts { color: #6e6e73; text-align: right; font-variant-numeric: tabular-nums; }
+  .wk-line .cmd { white-space: pre-wrap; overflow-wrap: anywhere; } .wk-line .cmd::before { content: "# "; color: #32d74b; }
+  .wk-line.sys .cmd { color: #a1a1a6; } .wk-line.sys .cmd::before { content: ""; }
+  .wk-cursor { display: inline-block; width: .55em; height: 1em; background: #e8e8ed; vertical-align: text-bottom; animation: wk-blink 1s steps(1) infinite; }
+  @keyframes wk-blink { 50% { opacity: 0; } }
+  .wk-now { display: flex; align-items: center; gap: .75rem; padding: .75rem 1rem; border-radius: 14px; background: var(--ap-fill); font-size: .9375rem; min-height: 3.2rem; }
+  .wk-now .lbl { font-size: .75rem; font-weight: 600; color: var(--ap-fg2); white-space: nowrap; }
+  .wk-now b { font-weight: 600; }
+  .wk-ctrl { display: flex; flex-wrap: wrap; align-items: center; gap: .5rem; }
+  .wk-ctrl button { font: inherit; font-size: .8125rem; font-weight: 600; border: 0; border-radius: 999px; padding: .5rem 1.1rem; background: var(--ap-blue); color: #fff; cursor: pointer; }
+  .wk-ctrl button.sec { background: var(--ap-fill); color: var(--ap-fg); font-weight: 500; }
+  .wk-ctrl .meta { font-size: .8125rem; color: var(--ap-fg2); margin-left: auto; }
+  .wk-tog { display: grid; gap: .5rem; grid-template-columns: repeat(auto-fit, minmax(min(100%, 8rem), 1fr)); }
+  .wk-tog button { font: inherit; text-align: center; display: grid; gap: .2rem; justify-items: center; padding: .9rem .75rem; border-radius: 16px; border: 0; cursor: pointer; background: color-mix(in srgb, #FF3B30 12%, var(--ap-card)); color: var(--ap-fg); box-shadow: inset 0 0 0 1.5px color-mix(in srgb, #FF3B30 45%, transparent); transition: background-color .3s, box-shadow .3s; }
+  .wk-tog button[aria-pressed="false"] { background: var(--ap-fill); box-shadow: none; color: var(--ap-fg2); }
+  .wk-tog .p { font-weight: 600; font-size: .9375rem; }
+  .wk-tog .s { font-size: .75rem; font-weight: 600; letter-spacing: .02em; }
+  .wk-tog button[aria-pressed="true"] .s { color: #FF3B30; }
+  .wk-tog .c { font-size: .75rem; color: var(--ap-fg2); font-variant-numeric: tabular-nums; }
+  .wk-out { display: grid; gap: .75rem; grid-template-columns: repeat(auto-fit, minmax(min(100%, 13rem), 1fr)); }
+  .wk-out > div { display: grid; gap: .2rem; justify-items: center; text-align: center; padding: 1.1rem; border-radius: 16px; background: var(--ap-fill); }
+  .wk-out .v { font-size: clamp(2rem, 4vw, 2.75rem); font-weight: 600; line-height: 1.05; letter-spacing: -.02em; font-variant-numeric: tabular-nums; }
+  .wk-out .pc { font-size: .875rem; font-weight: 600; color: var(--ap-blue); }
+  .wk-out .k { font-size: .8125rem; color: var(--ap-fg2); }
+  .wk-meter { height: .5rem; width: 100%; border-radius: 999px; background: var(--ap-card); overflow: hidden; margin-top: .25rem; }
+  .wk-meter i { display: block; height: 100%; background: var(--ap-blue); border-radius: inherit; transition: width .6s var(--ap-ease); }
+  .wk-presets { display: flex; flex-wrap: wrap; gap: .45rem; justify-content: center; }
+  .wk-presets button { font: inherit; font-size: .8125rem; border: 0; border-radius: 999px; padding: .4rem .85rem; background: var(--ap-fill); color: var(--ap-fg); cursor: pointer; }
   @media (prefers-reduced-motion: reduce) {
     .hp *, .hp *::before { animation: none !important; transition: none !important; }
     .hp.ap-js [data-reveal] { opacity: 1; transform: none; }
@@ -378,6 +431,7 @@ body{margin:0;padding:16px;background:var(--color-bg);color:var(--color-fg);font
       <button class="hp-tab" role="tab" id="tab-overview" data-tab="overview" aria-selected="true"><span data-l="th">ภาพรวม</span><span data-l="en">Overview</span></button>
       <button class="hp-tab" role="tab" id="tab-map" data-tab="map" aria-selected="false"><span data-l="th">แผนที่การโจมตี</span><span data-l="en">Attack map</span></button>
       <button class="hp-tab" role="tab" id="tab-bots" data-tab="bots" aria-selected="false"><span data-l="th">พฤติกรรมบอท + สิ่งที่ vendor ต้องเช็ค</span><span data-l="en">Bot behaviour + vendor checklist</span></button>
+      <button class="hp-tab" role="tab" id="tab-walk" data-tab="walk" aria-selected="false"><span data-l="th">จำลองการโจมตี</span><span data-l="en">Walkthrough</span></button>
       <button class="hp-tab" role="tab" id="tab-system" data-tab="system" aria-selected="false"><span data-l="th">ผังระบบ</span><span data-l="en">System</span></button>
     </nav>
     <div class="hp-lang" role="group" aria-label="Language / ภาษา" data-draw="lang-ui"><button type="button" data-lang-set="th" aria-pressed="true">TH</button><button type="button" data-lang-set="en" aria-pressed="false">EN</button></div>
@@ -553,6 +607,30 @@ body{margin:0;padding:16px;background:var(--color-bg);color:var(--color-fg);font
     </article>
   </section>
 
+  <section class="hp-page" id="walk" data-page="walk" hidden>
+    <div class="hp-head">
+      <h2 class="hp-title"><span data-l="th">ถ้าเครื่องนี้เป็น ONU จริง จะเกิดอะไรขึ้น</span><span data-l="en">If this were a real ONU, what would happen</span></h2>
+    </div>
+
+    <article class="hp-card wk-card" id="funnel">
+      <h2><span data-l="th">บอทไปได้ไกลแค่ไหน</span><span data-l="en">How far the bots got</span></h2>
+      <p class="hp-note"><span data-l="th">นับเป็น session ของ SSH และ Telnet · honeypot ยอมให้ login ผ่านเพื่อดูว่าบอทจะทำอะไรต่อ</span><span data-l="en">SSH and Telnet sessions · the honeypot lets logins through to see what bots do next</span></p>
+      <div class="wk-funnel" data-draw="wk-funnel" data-source="story_rows"></div>
+    </article>
+
+    <article class="hp-card wk-card" id="replay">
+      <h2><span data-l="th">ดูบอทพิมพ์จริง</span><span data-l="en">Watch a bot type</span></h2>
+      <p class="hp-note"><span data-l="th">เล่น session จริงตามเวลาจริงที่บอทส่งแต่ละคำสั่ง · URL และ IP ถูกทำให้กดไม่ได้</span><span data-l="en">Real sessions played back at the real pace of each command · URLs and IPs are defanged</span></p>
+      <div class="wk-replay" data-draw="wk-replay" data-source="story_rows"></div>
+    </article>
+
+    <article class="hp-card wk-card" id="ports">
+      <h2><span data-l="th">ถ้าปิดพอร์ตนี้ จะตัดการโจมตีได้เท่าไร</span><span data-l="en">Close a port, see how much attack is left</span></h2>
+      <p class="hp-note"><span data-l="th">กดเปิด/ปิดแต่ละพอร์ต · ตัวเลขคำนวณจากข้อมูลจริงของ honeypot · โจมตี = session SSH/Telnet ที่พิมพ์คำสั่ง + request เว็บที่เจาะ, หาไฟล์ลับ หรือใช้เป็น proxy</span><span data-l="en">Toggle each port · figures come from the honeypot's real data · attack = SSH/Telnet sessions that typed commands + web requests that exploit, hunt secrets or try a proxy</span></p>
+      <div class="wk-ports" data-draw="wk-ports" data-source="story_rows"></div>
+    </article>
+  </section>
+
   <section class="hp-page" id="system" data-page="system" hidden>
     <div class="hp-head">
       <h2 class="hp-title"><span data-l="th">สถาปัตยกรรมระบบ</span><span data-l="en">System Architecture</span></h2>
@@ -647,6 +725,134 @@ body{margin:0;padding:16px;background:var(--color-bg);color:var(--color-fg);font
   </section>
   <footer class="hp-foot"><span class="hp-sign">Futureverse Project</span><span data-l="th">อัปเดตล่าสุด </span><span data-l="en">Last updated </span><span data-draw="k-gen" data-source="kpis" data-field="generated" data-row="0">—</span></footer>
 </div>
+
+<script>{
+  dash.calc('story_rows', {
+    title: 'Walkthrough data',
+    description: 'How far SSH/Telnet bots got (funnel), real sessions to replay with a note per command, and attack numbers per port for the port on/off simulator.',
+    inputs: ['story'],
+    fn: (rows) => rows,
+  });
+  const wkRows = () => { const d = dash.data('story_rows'); return d.status === 'ok' ? d.data : []; };
+  const wkL = (th, en) => window.HP.L(th, en);
+  const wkF = (n) => window.HP.fmt(n);
+  const wkMk = (tag, cls, text) => { const n = document.createElement(tag); if (cls) n.className = cls; if (text != null) n.textContent = text; return n; };
+  const wkReduce = matchMedia('(prefers-reduced-motion: reduce)').matches;
+
+  dash.draw('wk-funnel', (el) => {
+    const rows = wkRows(), st = rows.filter((r) => r.kind === 'funnel'), sub = rows.filter((r) => r.kind === 'funnel_sub');
+    if (!st.length) { el.replaceChildren(); return; }
+    const top = st[0].sessions;
+    const nodes = [];
+    st.forEach((r, i) => {
+      if (i) { const pct = 100 * r.sessions / st[i - 1].sessions; nodes.push(wkMk('div', 'wk-drop', wkL(`เหลือ ${pct < 1 ? pct.toFixed(1) : Math.round(pct)}%`, `${pct < 1 ? pct.toFixed(1) : Math.round(pct)}% continue`))); }
+      const stage = wkMk('div', 'wk-stage' + (r.key === 'act' ? ' is-hot' : ''));
+      const bar = wkMk('div', 'wk-bar'); bar.style.width = `${Math.max(22, 100 * Math.sqrt(r.sessions / top))}%`;
+      bar.append(wkMk('span', 'n', wkF(r.sessions)), wkMk('span', 't', `${wkL(r.th, r.en)} · ${wkF(r.ips)} IP`));
+      stage.append(bar);
+      if (r.key === 'act' && sub.length) { const w = wkMk('div', 'wk-subs'); sub.forEach((x) => { const s = wkMk('span'); s.append(wkMk('b', '', wkF(x.sessions)), document.createTextNode(wkL(x.th, x.en))); w.append(s); }); stage.append(w); }
+      nodes.push(stage);
+    });
+    nodes.push(wkMk('p', 'hp-note', wkL('ความกว้างของแถบใช้สเกลรากที่สอง เพื่อให้ขั้นสุดท้ายที่เล็กมากยังมองเห็นได้', 'Bar widths use a square-root scale so the tiny last stage stays visible')));
+    el.replaceChildren(...nodes);
+  });
+
+  const wkPlayer = {pick: 0, timers: [], token: 0, played: false};
+  dash.draw('wk-replay', (el) => {
+    const reps = wkRows().filter((r) => r.kind === 'replay');
+    wkPlayer.token++; wkPlayer.timers.forEach(clearTimeout); wkPlayer.timers = [];
+    if (!reps.length) { el.replaceChildren(); return; }
+    if (wkPlayer.pick >= reps.length) wkPlayer.pick = 0;
+    const picks = wkMk('div', 'wk-picks');
+    reps.forEach((r, i) => { const b = wkMk('button', '', wkL(r.title, r.title_en)); b.type = 'button'; b.setAttribute('aria-pressed', String(i === wkPlayer.pick)); b.onclick = () => { wkPlayer.pick = i; picks.querySelectorAll('button').forEach((x, j) => x.setAttribute('aria-pressed', String(j === i))); load(true); }; picks.append(b); });
+    const term = wkMk('div', 'wk-term'), head = wkMk('div', 'wk-term-h'), screen = wkMk('div', 'wk-screen');
+    const now = wkMk('div', 'wk-now'), ctrl = wkMk('div', 'wk-ctrl');
+    const play = wkMk('button', '', wkL('▶ เล่น', '▶ Play')); play.type = 'button';
+    const all = wkMk('button', 'sec', wkL('แสดงทั้งหมด', 'Show all')); all.type = 'button';
+    const meta = wkMk('span', 'meta');
+    ctrl.append(play, all, meta); term.append(head, screen);
+    el.replaceChildren(picks, term, now, ctrl);
+    let clock;
+    const setNow = (th, en) => { now.replaceChildren(wkMk('span', 'lbl', wkL('ตอนนี้บอท', 'Now')), Object.assign(wkMk('b'), {textContent: th ? wkL(th, en) : '…'})); };
+    const line = (ts, text, sys) => { const l = wkMk('div', 'wk-line' + (sys ? ' sys' : '')); l.append(wkMk('span', 'ts', ts), wkMk('span', 'cmd', text)); screen.append(l); screen.scrollTop = screen.scrollHeight; return l; };
+    function load(autoplay) {
+      wkPlayer.token++; const tok = wkPlayer.token; wkPlayer.timers.forEach(clearTimeout); wkPlayer.timers = [];
+      const r = reps[wkPlayer.pick];
+      head.replaceChildren();
+      const dots = wkMk('span', 'wk-dots'); dots.append(wkMk('i'), wkMk('i'), wkMk('i'));
+      clock = wkMk('span', 'wk-clock', '0.0 s');
+      const info = wkMk('span'); info.innerHTML = `${r.proto.toUpperCase()} · login <code></code> · ${r.start}`; info.querySelector('code').textContent = `${r.user || '(blank)'} / ${r.pw || '(blank)'}`;
+      head.append(dots, info, clock);
+      screen.replaceChildren(); setNow('', '');
+      meta.textContent = wkL(`${r.cmds.length} คำสั่ง ใน ${r.dur} วินาที · กลุ่ม ${r.family}`, `${r.cmds.length} commands in ${r.dur} s · family ${r.family}`);
+      line('', wkL(`เชื่อมต่อ ${r.proto} สำเร็จ · login ผ่านด้วย ${r.user || '(ว่าง)'} / ${r.pw || '(ว่าง)'}`, `${r.proto} connected · logged in as ${r.user || '(blank)'} / ${r.pw || '(blank)'}`), true);
+      const showAll = () => { wkPlayer.token++; wkPlayer.timers.forEach(clearTimeout); screen.replaceChildren(); line('', wkL(`login ผ่านด้วย ${r.user || '(ว่าง)'} / ${r.pw || '(ว่าง)'}`, `logged in as ${r.user || '(blank)'} / ${r.pw || '(blank)'}`), true); r.cmds.forEach((c) => line(`${c[0].toFixed(1)}s`, c[1])); const last = r.cmds[r.cmds.length - 1]; setNow(last[2], last[3]); clock.textContent = `${r.dur} s`; screen.scrollTop = 0; };
+      all.onclick = showAll;
+      play.onclick = () => load(true);
+      if (!autoplay || wkReduce) { if (wkReduce && autoplay) showAll(); return; }
+      const t0 = performance.now();
+      const tick = () => { if (tok !== wkPlayer.token) return; const s = (performance.now() - t0) / 1000; clock.textContent = `${Math.min(s, r.dur + 0.05).toFixed(1)} s`; if (s < r.dur + 0.3) requestAnimationFrame(tick); else clock.textContent = `${r.dur} s`; };
+      requestAnimationFrame(tick);
+      r.cmds.forEach((c, i) => {
+        wkPlayer.timers.push(setTimeout(() => {
+          if (tok !== wkPlayer.token) return;
+          const l = line(`${c[0].toFixed(1)}s`, ''); const span = l.querySelector('.cmd'); const cur = wkMk('span', 'wk-cursor'); span.append(cur);
+          setNow(c[2], c[3]);
+          const text = c[1], step = Math.max(1, Math.ceil(text.length / 18)); let k = 0;
+          const type = () => { if (tok !== wkPlayer.token) return; k = Math.min(text.length, k + step); span.textContent = text.slice(0, k); if (k < text.length) { span.append(cur); wkPlayer.timers.push(setTimeout(type, 12)); } else if (i === r.cmds.length - 1) { span.append(cur); } screen.scrollTop = screen.scrollHeight; };
+          type();
+        }, c[0] * 1000));
+      });
+    }
+    load(false);
+    if (!wkPlayer.played && 'IntersectionObserver' in window) {
+      const io = new IntersectionObserver((es) => { if (es.some((e) => e.isIntersecting) && !wkPlayer.played) { wkPlayer.played = true; io.disconnect(); load(true); } }, {threshold: 0.5});
+      io.observe(term);
+    }
+  });
+
+  const wkPorts = {off: new Set()};
+  dash.draw('wk-ports', (el) => {
+    const rows = wkRows(), ports = rows.filter((r) => r.kind === 'port'), masks = rows.filter((r) => r.kind === 'mask');
+    if (!ports.length) { el.replaceChildren(); return; }
+    const BIT = {'22': 1, '23': 2, '80': 4, '8080': 8, '7547': 16};
+    const order = ['23', '22', '80', '8080', '7547'], P = Object.fromEntries(ports.map((p) => [p.key, p]));
+    const tog = wkMk('div', 'wk-tog'), out = wkMk('div', 'wk-out'), pres = wkMk('div', 'wk-presets');
+    const allIps = masks.reduce((a, m) => a + m.n, 0), allEv = ports.reduce((a, p) => a + p.attacks, 0);
+    const allFam = new Set(ports.flatMap((p) => p.families || []));
+    const box = (k) => { const d = wkMk('div'); const v = wkMk('span', 'v'), pc = wkMk('span', 'pc'), m = wkMk('div', 'wk-meter'), i = wkMk('i'); m.append(i); d.append(wkMk('span', 'k', k), v, pc, m); out.append(d); return {v, pc, i}; };
+    const bIp = box(wkL('IP ที่ยังโจมตีเข้ามาได้', 'Attacking IPs still getting in'));
+    const bEv = box(wkL('เหตุการณ์โจมตีที่ยังเกิดได้', 'Attack events still possible'));
+    const bFam = box(wkL('กลุ่มบอทที่ยังเข้ามาสั่งงานได้', 'Bot families still able to run commands'));
+    const update = () => {
+      let open = 0; order.forEach((k) => { if (!wkPorts.off.has(k)) open |= BIT[k]; });
+      const ip = masks.reduce((a, m) => a + ((m.m & open) ? m.n : 0), 0);
+      const ev = order.reduce((a, k) => a + (wkPorts.off.has(k) ? 0 : (P[k] ? P[k].attacks : 0)), 0);
+      const fam = new Set(order.filter((k) => !wkPorts.off.has(k)).flatMap((k) => (P[k] && P[k].families) || []));
+      [[bIp, ip, allIps], [bEv, ev, allEv], [bFam, fam.size, allFam.size]].forEach(([b, n, t]) => { b.v.textContent = wkF(n); const pct = t ? Math.round(100 * n / t) : 0; b.pc.textContent = wkL(`${pct}% ของตอนเปิดทุกพอร์ต`, `${pct}% of all ports open`); b.i.style.width = `${pct}%`; });
+      tog.querySelectorAll('button').forEach((b) => b.setAttribute('aria-pressed', String(!wkPorts.off.has(b.dataset.k))));
+      tog.querySelectorAll('button').forEach((b) => { b.querySelector('.s').textContent = wkPorts.off.has(b.dataset.k) ? wkL('ปิดแล้ว', 'CLOSED') : wkL('เปิดอยู่', 'OPEN'); });
+    };
+    order.forEach((k) => {
+      const p = P[k]; if (!p) return;
+      const b = wkMk('button'); b.type = 'button'; b.dataset.k = k;
+      b.append(wkMk('span', 'p', p.label), wkMk('span', 's'), wkMk('span', 'c', wkL(`โจมตี ${wkF(p.attacks)} ครั้ง`, `${wkF(p.attacks)} attacks`)));
+      b.onclick = () => { if (wkPorts.off.has(k)) wkPorts.off.delete(k); else wkPorts.off.add(k); update(); };
+      tog.append(b);
+    });
+    [[wkL('เปิดทุกพอร์ต (แบบ honeypot)', 'All open (like the honeypot)'), []],
+     [wkL('ปิด Telnet อย่างเดียว', 'Close Telnet only'), ['23']],
+     [wkL('ปิดทุกอย่างยกเว้น TR-069', 'Close all but TR-069'), ['23', '22', '80', '8080']],
+     [wkL('ปิดทั้งหมด', 'Close everything'), order]].forEach(([t, off]) => { const b = wkMk('button', '', t); b.type = 'button'; b.onclick = () => { wkPorts.off = new Set(off); update(); }; pres.append(b); });
+    const k = (key) => { const r = rows.find((x) => x.kind === 'kpi' && x.key === key); return r ? r.n : null; };
+    const nodes = [tog, pres, out];
+    if (k('ssh_top_sessions')) nodes.push(wkMk('p', 'hp-note', wkL(
+      `เหตุการณ์ทาง SSH ${Math.round(100 * k('ssh_top_sessions') / k('ssh_cmd_sessions'))}% มาจากบอทกลุ่มเดียว (${wkF(k('ssh_top_sessions'))} session จาก ${wkF(k('ssh_top_ips'))} IP) จึงควรดูจำนวน IP ประกอบด้วย`,
+      `${Math.round(100 * k('ssh_top_sessions') / k('ssh_cmd_sessions'))}% of SSH events come from one bot family (${wkF(k('ssh_top_sessions'))} sessions from ${wkF(k('ssh_top_ips'))} IPs), so read the IP count alongside`)));
+    el.replaceChildren(...nodes);
+    update();
+  });
+}</script>
 
 <script>{
   const fmt = d3.format(',');
@@ -1195,7 +1401,7 @@ body{margin:0;padding:16px;background:var(--color-bg);color:var(--color-fg);font
     window.scrollTo({top: 0, behavior: 'smooth'});
   };
   document.querySelectorAll('[data-tab]').forEach((t) => t.addEventListener('click', () => show(t.dataset.tab)));
-  if (['bots', 'map', 'system'].includes(location.hash.slice(1))) show(location.hash.slice(1));
+  if (['bots', 'map', 'walk', 'system'].includes(location.hash.slice(1))) show(location.hash.slice(1));
 }</script>
 
 <script>{
