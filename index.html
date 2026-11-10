@@ -369,18 +369,40 @@ body{margin:0;padding:16px;background:var(--color-bg);color:var(--color-fg);font
   /* walkthrough tab */
   #walk .hp-card { gap: 1.1rem; justify-items: stretch; }
   #walk .hp-card > h2, #walk .hp-card > .hp-note { text-align: center; justify-self: center; max-width: 46rem; }
-  .wk-funnel { display: grid; gap: .35rem; justify-items: center; padding: .25rem 0; }
-  .wk-funnel > .hp-note { text-align: center; margin-top: .5rem; }
-  .wk-stage { width: 100%; display: grid; justify-items: center; gap: .3rem; }
-  .wk-bar { display: grid; place-items: center; min-height: 4.25rem; border-radius: 16px; background: var(--ap-fill); padding: .55rem 1rem; text-align: center; transition: width 1s var(--ap-ease); min-width: min(100%, 15rem); }
-  .wk-stage.is-hot .wk-bar { background: var(--ap-blue); color: #fff; }
-  .wk-bar .n { font-size: clamp(1.5rem, 3vw, 2.1rem); font-weight: 600; line-height: 1.1; letter-spacing: -.02em; font-variant-numeric: tabular-nums; }
-  .wk-bar .t { font-size: .8125rem; line-height: 1.35; opacity: .85; }
-  .wk-drop { font-size: .75rem; color: var(--ap-fg2); display: grid; justify-items: center; gap: .1rem; }
-  .wk-drop::before { content: ""; width: 1px; height: .7rem; background: var(--ap-line); }
-  .wk-subs { display: flex; flex-wrap: wrap; justify-content: center; gap: .5rem; margin-top: .35rem; }
-  .wk-subs span { padding: .3rem .75rem; border-radius: 999px; background: color-mix(in srgb, var(--ap-blue) 12%, var(--ap-card)); font-size: .8125rem; }
+  .wk-funnel { display: grid; gap: 1rem; }
+  .wk-flow { display: grid; grid-template-columns: minmax(0, 1fr) 4.25rem minmax(0, 1fr) 4.25rem minmax(0, 1fr) 4.25rem minmax(0, 1fr); align-items: stretch; }
+  .wk-step { display: grid; justify-items: center; align-content: center; gap: .3rem; text-align: center; padding: 1.25rem .9rem 1.1rem; border-radius: 18px; background: var(--ap-fill); min-height: 11rem; }
+  .wk-step .k { width: 1.5rem; height: 1.5rem; display: grid; place-items: center; border-radius: 50%; background: var(--ap-card); color: var(--ap-fg2); font-size: .75rem; font-weight: 600; }
+  .wk-step .n { font-size: clamp(1.6rem, 2.6vw, 2.25rem); font-weight: 600; line-height: 1.05; letter-spacing: -.02em; font-variant-numeric: tabular-nums; }
+  .wk-step .l { font-size: .9375rem; font-weight: 600; }
+  .wk-step .bar { width: 100%; height: 6px; border-radius: 999px; background: var(--ap-card); overflow: hidden; margin-top: .35rem; }
+  .wk-step .bar i { display: block; height: 100%; border-radius: inherit; background: var(--ap-gray); }
+  .wk-step .s { font-size: .75rem; color: var(--ap-fg2); font-variant-numeric: tabular-nums; }
+  .wk-step.is-hot { background: var(--ap-blue); color: #fff; }
+  .wk-step.is-hot .k { background: rgba(255,255,255,.22); color: #fff; }
+  .wk-step.is-hot .bar { background: rgba(255,255,255,.25); } .wk-step.is-hot .bar i { background: #fff; }
+  .wk-step.is-hot .s { color: rgba(255,255,255,.85); }
+  .wk-arrow { position: relative; display: grid; place-items: center; }
+  .wk-arrow .ln { position: absolute; left: .35rem; right: .35rem; top: 50%; height: 2px; background: var(--ap-line); }
+  .wk-arrow .ln::after { content: ""; position: absolute; right: -1px; top: -4px; border: 5px solid transparent; border-left: 7px solid var(--ap-gray); border-right: 0; }
+  .wk-arrow .g { position: relative; z-index: 1; display: grid; justify-items: center; }
+  .wk-arrow .cap { position: absolute; top: calc(100% + .3rem); left: 50%; transform: translateX(-50%); white-space: nowrap; font-size: .6875rem; color: var(--ap-fg2); }
+  .wk-arrow .pc { position: relative; z-index: 1; padding: .2rem .5rem; border-radius: 999px; background: var(--ap-card); box-shadow: 0 0 0 1px var(--ap-line); font-size: .8125rem; font-weight: 700; font-variant-numeric: tabular-nums; }
+  .wk-arrow.is-drop .pc { background: #FF3B30; color: #fff; box-shadow: none; }
+  .wk-arrow.is-drop .ln { background: color-mix(in srgb, #FF3B30 45%, transparent); } .wk-arrow.is-drop .ln::after { border-left-color: #FF3B30; }
+  .wk-subs { display: flex; flex-wrap: wrap; justify-content: center; align-items: center; gap: .5rem; }
+  .wk-subs .cap { font-size: .8125rem; color: var(--ap-fg2); }
+  .wk-subs .chip { padding: .3rem .8rem; border-radius: 999px; background: color-mix(in srgb, var(--ap-blue) 12%, var(--ap-card)); font-size: .8125rem; }
   .wk-subs b { font-variant-numeric: tabular-nums; margin-right: .3rem; }
+  @media (max-width: 48rem) {
+    .wk-flow { grid-template-columns: minmax(0, 1fr); grid-auto-rows: auto; }
+    .wk-step { min-height: 0; padding: 1rem; }
+    .wk-arrow { height: 3.6rem; }
+    .wk-arrow .cap { top: 50%; left: calc(100% + .45rem); transform: translateY(-50%); }
+    .wk-arrow .ln { left: 50%; right: auto; top: .3rem; bottom: .3rem; width: 2px; height: auto; transform: translateX(-50%); }
+    .wk-arrow .ln::after { right: auto; left: -4px; top: auto; bottom: -1px; border: 5px solid transparent; border-top: 7px solid var(--ap-gray); border-bottom: 0; }
+    .wk-arrow.is-drop .ln::after { border-left-color: transparent; border-top-color: #FF3B30; }
+  }
 
   .wk-replay { display: grid; gap: .9rem; }
   .wk-picks { display: grid; gap: .5rem; grid-template-columns: repeat(2, minmax(0, 1fr)); }
@@ -766,18 +788,29 @@ body{margin:0;padding:16px;background:var(--color-bg);color:var(--color-fg);font
   dash.draw('wk-funnel', (el) => {
     const rows = wkRows(), st = rows.filter((r) => r.kind === 'funnel'), sub = rows.filter((r) => r.kind === 'funnel_sub');
     if (!st.length) { el.replaceChildren(); return; }
-    const top = st[0].sessions;
-    const nodes = [];
+    const SHORT = {connect: ['ต่อเข้ามา', 'Connected'], login: ['login ผ่าน', 'Logged in'], cmd: ['พิมพ์คำสั่ง', 'Typed commands'], act: ['ลงมือจริง', 'Acted for real']};
+    const pct = (a, b) => { const v = 100 * a / b; return v >= 10 ? `${Math.round(v)}%` : v >= 1 ? `${v.toFixed(1)}%` : `${v.toFixed(1)}%`; };
+    const top = st[0].sessions, flow = wkMk('div', 'wk-flow');
     st.forEach((r, i) => {
-      if (i) { const pct = 100 * r.sessions / st[i - 1].sessions; nodes.push(wkMk('div', 'wk-drop', wkL(`เหลือ ${pct < 1 ? pct.toFixed(1) : Math.round(pct)}%`, `${pct < 1 ? pct.toFixed(1) : Math.round(pct)}% continue`))); }
-      const stage = wkMk('div', 'wk-stage' + (r.key === 'act' ? ' is-hot' : ''));
-      const bar = wkMk('div', 'wk-bar'); bar.style.width = `${Math.max(22, 100 * Math.sqrt(r.sessions / top))}%`;
-      bar.append(wkMk('span', 'n', wkF(r.sessions)), wkMk('span', 't', `${wkL(r.th, r.en)} · ${wkF(r.ips)} IP`));
-      stage.append(bar);
-      if (r.key === 'act' && sub.length) { const w = wkMk('div', 'wk-subs'); sub.forEach((x) => { const s = wkMk('span'); s.append(wkMk('b', '', wkF(x.sessions)), document.createTextNode(wkL(x.th, x.en))); w.append(s); }); stage.append(w); }
-      nodes.push(stage);
+      if (i) {
+        const a = wkMk('div', 'wk-arrow' + (r.sessions / st[i - 1].sessions < 0.05 ? ' is-drop' : ''));
+        const g = wkMk('span', 'g'); g.append(wkMk('span', 'pc', pct(r.sessions, st[i - 1].sessions)), wkMk('span', 'cap', wkL('ไปต่อ', 'go on'))); a.append(wkMk('span', 'ln'), g);
+        flow.append(a);
+      }
+      const c = wkMk('div', 'wk-step' + (r.key === 'act' ? ' is-hot' : ''));
+      const lab = SHORT[r.key] || [r.th, r.en];
+      const bar = wkMk('span', 'bar'), fill = wkMk('i'); fill.style.width = `${Math.max(0.6, 100 * r.sessions / top)}%`; bar.append(fill);
+      c.append(wkMk('span', 'k', `${i + 1}`), wkMk('span', 'n', wkF(r.sessions)), wkMk('span', 'l', wkL(lab[0], lab[1])), bar,
+        wkMk('span', 's', wkL(`${pct(r.sessions, top)} ของทั้งหมด · ${wkF(r.ips)} IP`, `${pct(r.sessions, top)} of all · ${wkF(r.ips)} IPs`)));
+      flow.append(c);
     });
-    nodes.push(wkMk('p', 'hp-note', wkL('ความกว้างของแถบใช้สเกลรากที่สอง เพื่อให้ขั้นสุดท้ายที่เล็กมากยังมองเห็นได้', 'Bar widths use a square-root scale so the tiny last stage stays visible')));
+    const nodes = [flow];
+    if (sub.length) {
+      const w = wkMk('div', 'wk-subs');
+      w.append(wkMk('span', 'cap', wkL('ลงมือจริง แยกเป็น', 'Acted for real, split into')));
+      sub.forEach((x) => { const s = wkMk('span', 'chip'); s.append(wkMk('b', '', wkF(x.sessions)), document.createTextNode(wkL(x.th, x.en))); w.append(s); });
+      nodes.push(w);
+    }
     el.replaceChildren(...nodes);
   });
 
